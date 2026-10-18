@@ -1,5 +1,11 @@
 # @conciergeprotocol/client
 
+## 0.1.2
+
+### Patch Changes
+
+- b7b5445: Publish the READMEs, and make the MCP package depend on a real client version.
+
 ## 0.1.1
 
 ### Patch Changes

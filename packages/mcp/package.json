@@ -1,6 +1,6 @@
 {
   "name": "@conciergeprotocol/mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "MCP server for asking a Concierge Agent Protocol front door.",
   "type": "module",
   "bin": {
@@ -30,7 +30,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@conciergeprotocol/client": "^0.1.1",
+    "@conciergeprotocol/client": "^0.1.2",
     "@modelcontextprotocol/sdk": "1.32.1",
     "zod": "^4.6.7"
   }
