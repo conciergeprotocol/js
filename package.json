@@ -6,7 +6,7 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "node --test packages/client/test packages/mcp/test",
+    "test": "node --test packages/client/test/*.test.js packages/mcp/test/*.test.js",
     "changeset": "changeset",
     "version": "changeset version && bun install",
     "release": "npx changeset publish"
