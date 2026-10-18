@@ -1,0 +1,27 @@
+{
+  "name": "@conciergeprotocol/client",
+  "version": "0.1.0",
+  "description": "Call any Concierge Agent Protocol front door.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciergeprotocol/js.git",
+    "directory": "packages/client"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
