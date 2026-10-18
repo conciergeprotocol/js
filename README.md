@@ -4,6 +4,21 @@ Two packages for calling a CAP front door. `@conciergeprotocol/client` is the li
 
 The protocol is at [conciergeprotocol.org](https://conciergeprotocol.org). These packages only call a front door. A company publishes `agent.txt`. It does not publish an MCP server.
 
+## Install
+
+- [@conciergeprotocol/client](https://www.npmjs.com/package/@conciergeprotocol/client)
+- [@conciergeprotocol/mcp](https://www.npmjs.com/package/@conciergeprotocol/mcp)
+
+```sh
+npm install @conciergeprotocol/client
+```
+
+The MCP server is a command. Install it, or run it with `npx` as in the block below.
+
+```sh
+npm install @conciergeprotocol/mcp
+```
+
 ## Client
 
 ```js
