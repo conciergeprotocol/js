@@ -49,15 +49,13 @@ Cursor, Claude Desktop, and VS Code use the same block. In VS Code it goes in `.
 
 ## Release
 
-Both packages share one version. From a clean `main`:
+Same flow as the Cosmic packages. Add a changeset, then merge to `main`:
 
 ```sh
-node scripts/release.mjs 0.1.0
+bun run changeset
 ```
 
-That sets the version, runs the tests, commits when the version changed, tags `v0.1.0`, and pushes the tag. GitHub then publishes `@conciergeprotocol/client` and `@conciergeprotocol/mcp`.
-
-npm will not create a brand-new package from GitHub alone. Publish `0.1.0` once from a machine that is logged in (`npm login`, then `npm publish --access public --provenance=false` in each package after `node scripts/prepare-publish.mjs`). On each package, add a trusted publisher: organization `conciergeprotocol`, repository `js`, workflow `release.yml`. After that, a tag is enough and no npm token is stored. Until the trusted publisher is saved, add a repository secret named `NPM_TOKEN`.
+Package Checks runs on every push. When it passes on `main`, the publish workflow opens a version pull request, or publishes both packages and tags the release. The two packages stay on one version. The repository needs an `NPM_TOKEN` secret.
 
 ## License
 
