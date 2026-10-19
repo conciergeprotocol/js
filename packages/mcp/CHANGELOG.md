@@ -1,5 +1,13 @@
 # @conciergeprotocol/mcp
 
+## 0.1.3
+
+### Patch Changes
+
+- a6f1dc0: Publish the MCP registry name on the server package.
+- Updated dependencies [a6f1dc0]
+  - @conciergeprotocol/client@0.1.3
+
 ## 0.1.2
 
 ### Patch Changes
