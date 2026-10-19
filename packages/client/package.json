@@ -1,6 +1,6 @@
 {
   "name": "@conciergeprotocol/client",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Call any Concierge Agent Protocol front door.",
   "type": "module",
   "exports": {
