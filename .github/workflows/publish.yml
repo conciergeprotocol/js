@@ -60,4 +60,11 @@ jobs:
         run: |
           curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
           ./mcp-publisher login github-oidc
-          ./mcp-publisher publish
+          for attempt in 1 2 3 4 5 6; do
+            if ./mcp-publisher publish; then
+              exit 0
+            fi
+            echo "npm has not shown this version yet ($attempt). Waiting."
+            sleep 20
+          done
+          exit 1
