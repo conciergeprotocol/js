@@ -26,6 +26,8 @@ Or run it without a global install. Cursor, Claude Desktop, and VS Code use the 
 
 `CAP_FROM` names the caller. It must look like `agent:my-assistant`. When it is unset, the server uses `agent:cap-mcp`.
 
+The server is listed in the MCP registry as `io.github.conciergeprotocol/mcp`.
+
 Node.js 18 or newer.
 
 ## Tools

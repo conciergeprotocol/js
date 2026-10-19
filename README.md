@@ -60,7 +60,7 @@ Cursor, Claude Desktop, and VS Code use the same block. In VS Code it goes in `.
 }
 ```
 
-`CAP_FROM` defaults to `agent:cap-mcp`. The tools are `cap_discover`, `cap_ask`, and `cap_check`. `cap_ask` waits 60 seconds. If the company is still answering, it returns the message id and the model calls `cap_check` instead of guessing.
+`CAP_FROM` defaults to `agent:cap-mcp`. The tools are `cap_discover`, `cap_ask`, and `cap_check`. The server is listed in the MCP registry as `io.github.conciergeprotocol/mcp`. `cap_ask` waits 60 seconds. If the company is still answering, it returns the message id and the model calls `cap_check` instead of guessing.
 
 ## Release
 
@@ -70,7 +70,7 @@ Same flow as the Cosmic packages. Add a changeset, then merge to `main`:
 bun run changeset
 ```
 
-Package Checks runs on every push. When it passes on `main`, the publish workflow opens a version pull request, or publishes both packages and tags the release. The two packages stay on one version. The repository needs an `NPM_TOKEN` secret.
+Package Checks runs on every push. When it passes on `main`, the publish workflow opens a version pull request, or publishes both packages and tags the release. The two packages stay on one version. When the npm publish succeeds, the same workflow lists the server in the MCP registry. The repository needs an `NPM_TOKEN` secret.
 
 ## License
 

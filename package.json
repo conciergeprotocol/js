@@ -8,7 +8,7 @@
   "scripts": {
     "test": "node --test packages/client/test/*.test.js packages/mcp/test/*.test.js",
     "changeset": "changeset",
-    "version": "changeset version && bun install",
+    "version": "changeset version && node scripts/sync-registry-version.mjs && bun install",
     "release": "npx changeset publish"
   },
   "license": "Apache-2.0",

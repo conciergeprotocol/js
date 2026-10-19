@@ -1,6 +1,7 @@
 {
   "name": "@conciergeprotocol/mcp",
   "version": "0.1.2",
+  "mcpName": "io.github.conciergeprotocol/mcp",
   "description": "MCP server for asking a Concierge Agent Protocol front door.",
   "type": "module",
   "bin": {
