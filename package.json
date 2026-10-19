@@ -7,6 +7,7 @@
   ],
   "scripts": {
     "test": "node --test packages/client/test/*.test.js packages/mcp/test/*.test.js",
+    "test:live": "node --test packages/mcp/test/live/*.test.js",
     "changeset": "changeset",
     "version": "changeset version && node scripts/sync-registry-version.mjs && bun install",
     "release": "npx changeset publish"
