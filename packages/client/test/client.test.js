@@ -93,15 +93,15 @@ test('a redirect off the site is no door', async () => {
 
 test('a redirect to www on the same site is followed', async () => {
   const { cap, calls } = client(async ({ url }) => {
-    if (url === 'https://cosmicjs.com/agent.txt') {
-      return new Response(null, { status: 301, headers: { location: 'https://www.cosmicjs.com/agent.txt' } })
+    if (url === 'https://example.com/agent.txt') {
+      return new Response(null, { status: 301, headers: { location: 'https://www.example.com/agent.txt' } })
     }
-    return textResponse(200, AGENT.replace('https://harborgoods.example/cap/v1', 'https://www.cosmicjs.com/cap/v1'))
+    return textResponse(200, AGENT.replace('https://harborgoods.example/cap/v1', 'https://www.example.com/cap/v1'))
   })
-  const door = await cap.discover('cosmicjs.com')
+  const door = await cap.discover('example.com')
   assert.equal(calls.length, 2)
-  assert.equal(door.origin, 'https://www.cosmicjs.com')
-  assert.equal(door.cap, 'https://www.cosmicjs.com/cap/v1')
+  assert.equal(door.origin, 'https://www.example.com')
+  assert.equal(door.cap, 'https://www.example.com/cap/v1')
 })
 
 test('ask posts the message and returns a done reply', async () => {
@@ -175,12 +175,12 @@ test('a thread sends only the new question, and starts over on 409', async () =>
     if (url.endsWith('/agent.txt')) return textResponse(200, AGENT)
     posts += 1
     bodies.push(JSON.parse(init.body))
-    if (posts === 1) return jsonResponse(200, { id: 'msg_a', status: 'done', reply: 'Cosmic is a CMS.', created_at: 't', finished_at: 't' })
+    if (posts === 1) return jsonResponse(200, { id: 'msg_a', status: 'done', reply: 'We sell running shoes.', created_at: 't', finished_at: 't' })
     if (posts === 2) return jsonResponse(409, { error: { code: 'conflict', message: 'This thread is too long.' } })
     return jsonResponse(200, { id: 'msg_b', status: 'done', reply: 'The starter plan is free.', created_at: 't', finished_at: 't' })
   })
   const thread = cap.thread('harborgoods.example')
-  await thread.ask('What is Cosmic?')
+  await thread.ask('What do you sell?')
   const price = await thread.ask('How much is the cheapest paid plan?')
   assert.equal(price.reply, 'The starter plan is free.')
   assert.equal(thread.restarted, true)

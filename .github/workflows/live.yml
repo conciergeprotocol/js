@@ -20,5 +20,7 @@ jobs:
       - name: Install packages
         run: bun install --frozen-lockfile
 
-      - name: Ask cosmicjs.com
+      - name: Ask a live front door
         run: bun run test:live
+        env:
+          CAP_LIVE_DOMAIN: ${{ vars.CAP_LIVE_DOMAIN }}
