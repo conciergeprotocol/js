@@ -29,6 +29,8 @@ export function agentTxtUrl(input) {
   let url
   try {
     url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`)
+    // A local server rarely has TLS, so a bare loopback address means http.
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) && isLoopback(url.hostname)) url.protocol = 'http:'
   } catch {
     return null
   }
