@@ -3,7 +3,7 @@
   "name": "io.github.conciergeprotocol/mcp",
   "title": "Concierge Agent Protocol",
   "description": "Ask a company through its Concierge Agent Protocol front door.",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "websiteUrl": "https://conciergeprotocol.org",
   "repository": {
     "url": "https://github.com/conciergeprotocol/js",
@@ -14,7 +14,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@conciergeprotocol/mcp",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "transport": {
         "type": "stdio"
       },

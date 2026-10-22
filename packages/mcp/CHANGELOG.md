@@ -1,5 +1,12 @@
 # @conciergeprotocol/mcp
 
+## 0.1.5
+
+### Patch Changes
+
+- 159857b: Use example.com as the example domain in the tool descriptions.
+  - @conciergeprotocol/client@0.1.5
+
 ## 0.1.4
 
 ### Patch Changes
