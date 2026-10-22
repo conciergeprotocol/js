@@ -43,6 +43,17 @@ function client(handler, options = {}) {
   }
 }
 
+test('discover uses http for a loopback address without a scheme', async () => {
+  const local = AGENT.replaceAll('https://harborgoods.example', 'http://127.0.0.1:4101')
+  const { cap, calls } = client(async () => textResponse(200, local))
+  const door = await cap.discover('127.0.0.1:4101')
+  assert.equal(calls[0].url, 'http://127.0.0.1:4101/agent.txt')
+  assert.equal(door.cap, 'http://127.0.0.1:4101/cap/v1')
+  const named = client(async () => textResponse(200, local))
+  await named.cap.discover('localhost:4101')
+  assert.equal(named.calls[0].url, 'http://localhost:4101/agent.txt')
+})
+
 test('rejects a CAP-From without the agent prefix', () => {
   assert.throws(() => createClient({ from: 'my-assistant' }), CapError)
 })
