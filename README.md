@@ -26,15 +26,15 @@ import { createClient } from '@conciergeprotocol/client'
 
 const cap = createClient({ from: 'agent:my-assistant' })
 
-const answer = await cap.ask('cosmicjs.com', 'Do you have a free plan?')
+const answer = await cap.ask('example.com', 'Do you have a free plan?')
 console.log(answer.reply)
 ```
 
 A follow-up sends only the new question:
 
 ```js
-const thread = cap.thread('cosmicjs.com')
-await thread.ask('What is Cosmic?')
+const thread = cap.thread('example.com')
+await thread.ask('What do you sell?')
 const price = await thread.ask('How much is the cheapest paid plan?')
 ```
 
@@ -64,7 +64,7 @@ Cursor, Claude Desktop, and VS Code use the same block. In VS Code it goes in `.
 
 ## Release
 
-Same flow as the Cosmic packages. Add a changeset, then merge to `main`:
+Add a changeset, then merge to `main`:
 
 ```sh
 bun run changeset

@@ -6,25 +6,25 @@ import { createTools } from '../src/tools.js'
 const door = {
   protocol: 'CAP/1.0',
   name: 'Leo',
-  chat: 'https://www.cosmicjs.com/chat',
-  cap: 'https://www.cosmicjs.com/cap/v1',
+  chat: 'https://www.example.com/chat',
+  cap: 'https://www.example.com/cap/v1',
   oauth: null,
   spec: null,
-  origin: 'https://www.cosmicjs.com',
+  origin: 'https://www.example.com',
   extra: {},
 }
 
 test('cap_discover reports a door and a missing door', async () => {
   const tools = createTools({
-    discover: async (domain) => (domain === 'cosmicjs.com' ? door : null),
+    discover: async (domain) => (domain === 'example.com' ? door : null),
   })
-  assert.deepEqual(await tools.cap_discover({ domain: 'cosmicjs.com' }), {
+  assert.deepEqual(await tools.cap_discover({ domain: 'example.com' }), {
     door: true,
     name: 'Leo',
-    chat: 'https://www.cosmicjs.com/chat',
+    chat: 'https://www.example.com/chat',
     login: false,
   })
-  assert.deepEqual(await tools.cap_discover({ domain: 'example.com' }), { door: false })
+  assert.deepEqual(await tools.cap_discover({ domain: 'example.net' }), { door: false })
 })
 
 test('cap_ask returns the reply and a conversation id', async () => {
@@ -35,7 +35,7 @@ test('cap_ask returns the reply and a conversation id', async () => {
       return { id: 'msg_1', status: 'done', reply: 'Yes. The free plan includes 3 projects.' }
     },
   })
-  assert.deepEqual(await tools.cap_ask({ domain: 'cosmicjs.com', message: 'Do you have a free plan?' }), {
+  assert.deepEqual(await tools.cap_ask({ domain: 'example.com', message: 'Do you have a free plan?' }), {
     status: 'done',
     reply: 'Yes. The free plan includes 3 projects.',
     conversation_id: 'msg_1',
@@ -46,7 +46,7 @@ test('cap_ask tells the model to check instead of guessing', async () => {
   const tools = createTools({
     ask: async () => ({ id: 'msg_2', status: 'working' }),
   })
-  const result = await tools.cap_ask({ domain: 'cosmicjs.com', message: 'Pricing?' })
+  const result = await tools.cap_ask({ domain: 'example.com', message: 'Pricing?' })
   assert.equal(result.status, 'working')
   assert.match(result.message, /cap_check/)
   assert.equal(result.reply, undefined)
@@ -77,5 +77,5 @@ test('tool errors stay CapErrors', async () => {
   const tools = createTools({
     get: async () => { throw new CapError('rate_limited', 429, 'Too many messages.') },
   })
-  await assert.rejects(tools.cap_check({ domain: 'cosmicjs.com', message_id: 'msg_3' }), CapError)
+  await assert.rejects(tools.cap_check({ domain: 'example.com', message_id: 'msg_3' }), CapError)
 })

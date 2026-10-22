@@ -56,7 +56,10 @@ function text(result) {
   return JSON.parse(block.text)
 }
 
-test('the server can ask the cosmicjs.com front door', { timeout: 90_000 }, async () => {
+// The live check asks a real front door. Set CAP_LIVE_DOMAIN to the domain to ask.
+const domain = process.env.CAP_LIVE_DOMAIN
+
+test('the server can ask a live front door', { timeout: 90_000, skip: domain ? false : 'CAP_LIVE_DOMAIN is not set' }, async () => {
   const server = startServer()
   try {
     await server.request('initialize', {
@@ -68,7 +71,7 @@ test('the server can ask the cosmicjs.com front door', { timeout: 90_000 }, asyn
 
     const discovered = text(await server.request('tools/call', {
       name: 'cap_discover',
-      arguments: { domain: 'cosmicjs.com' },
+      arguments: { domain },
     }))
     assert.equal(discovered.door, true)
     assert.equal(typeof discovered.name, 'string')
@@ -76,7 +79,7 @@ test('the server can ask the cosmicjs.com front door', { timeout: 90_000 }, asyn
 
     const asked = text(await server.request('tools/call', {
       name: 'cap_ask',
-      arguments: { domain: 'cosmicjs.com', message: 'What is Cosmic, in one sentence?' },
+      arguments: { domain, message: 'What do you do, in one sentence?' },
     }))
     assert.equal(asked.status, 'done')
     assert.equal(typeof asked.reply, 'string')

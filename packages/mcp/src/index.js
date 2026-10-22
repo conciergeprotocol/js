@@ -35,7 +35,7 @@ const server = new McpServer({ name: 'cap', version: '0.1.0' })
 
 server.registerTool('cap_discover', {
   description: 'Check whether a website has a CAP front door, and whether visitors can log in.',
-  inputSchema: { domain: z.string().describe('The company domain, such as cosmicjs.com') },
+  inputSchema: { domain: z.string().describe('The company domain, such as example.com') },
 }, async (args) => {
   try {
     return ok(await tools.cap_discover(args))
@@ -47,7 +47,7 @@ server.registerTool('cap_discover', {
 server.registerTool('cap_ask', {
   description: ASK,
   inputSchema: {
-    domain: z.string().describe('The company domain, such as cosmicjs.com'),
+    domain: z.string().describe('The company domain, such as example.com'),
     message: z.string().describe('The question to send. On a follow-up, send only the new question.'),
     context: z.record(z.string(), z.unknown()).optional().describe('A short brief such as sizes, dates, or style. Not a profile.'),
     conversation_id: z.string().optional().describe('The conversation_id from the previous cap_ask, when this continues that conversation.'),
