@@ -85,9 +85,103 @@ test('a file over 16KB is no door', async () => {
   assert.equal(calls.length, 1)
 })
 
-test('a redirect off the site is no door', async () => {
-  const { cap, calls } = client(async () => new Response(null, { status: 302, headers: { location: 'https://evil.example/agent.txt' } }))
+test('a redirect off the site is followed when the file is valid', async () => {
+  const { cap, calls } = client(async ({ url }) => {
+    if (url === 'https://example.com/agent.txt') {
+      return new Response(null, { status: 302, headers: { location: 'https://cdn.example/files/agent.txt' } })
+    }
+    return textResponse(200, AGENT)
+  })
+  const door = await cap.discover('example.com')
+  assert.equal(calls.length, 2)
+  assert.equal(calls[1].url, 'https://cdn.example/files/agent.txt')
+  assert.equal(door.origin, 'https://example.com')
+  assert.equal(door.source, 'redirect')
+  assert.equal(door.cap, 'https://harborgoods.example/cap/v1')
+})
+
+test('a redirect to http is no door', async () => {
+  const { cap, calls } = client(async () => new Response(null, { status: 302, headers: { location: 'http://evil.example/agent.txt' } }))
   assert.equal(await cap.discover('example.com'), null)
+  assert.equal(calls.length, 1)
+})
+
+test('a homepage link is followed when agent.txt is missing', async () => {
+  const { cap } = client(async ({ url }) => {
+    if (url === 'https://example.com/agent.txt') return textResponse(404, 'missing')
+    if (url === 'https://example.com/') {
+      return new Response('<html><head><link rel="agent" href="https://cdn.example/agent.txt"></head><body></body></html>', {
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+      })
+    }
+    return textResponse(200, AGENT)
+  })
+  const door = await cap.discover('example.com')
+  assert.equal(door.source, 'link-tag')
+  assert.equal(door.origin, 'https://example.com')
+  assert.equal(door.name, 'Harbor Goods')
+})
+
+test('a homepage Link header wins over a link tag', async () => {
+  const { cap, calls } = client(async ({ url }) => {
+    if (url === 'https://shop.example/agent.txt') return textResponse(404, 'missing')
+    if (url === 'https://shop.example/') {
+      return new Response('<html><head><link rel="agent" href="https://cdn.example/tag.txt"></head></html>', {
+        status: 200,
+        headers: {
+          'content-type': 'text/html',
+          link: '<https://cdn.example/header.txt>; rel="agent prefetch"',
+        },
+      })
+    }
+    if (url === 'https://cdn.example/header.txt') return textResponse(200, AGENT)
+    return textResponse(404, 'no')
+  })
+  const door = await cap.discover('shop.example')
+  assert.equal(door.source, 'link-header')
+  assert.ok(calls.some((call) => call.url === 'https://cdn.example/header.txt'))
+  assert.equal(calls.some((call) => call.url === 'https://cdn.example/tag.txt'), false)
+})
+
+test('a link tag outside the head is ignored', async () => {
+  const { cap, calls } = client(async ({ url }) => {
+    if (url.endsWith('/agent.txt')) return textResponse(404, 'missing')
+    return new Response('<html><head><title>Shop</title></head><body><link rel="agent" href="https://cdn.example/agent.txt"></body></html>', {
+      status: 200,
+      headers: { 'content-type': 'text/html' },
+    })
+  })
+  assert.equal(await cap.discover('example.com'), null)
+  assert.equal(calls.some((call) => call.url === 'https://cdn.example/agent.txt'), false)
+})
+
+test('an HTML agent.txt is not scanned for a link', async () => {
+  const { cap, calls } = client(async ({ url }) => {
+    if (url.endsWith('/agent.txt')) {
+      return new Response('<html><head><link rel="agent" href="https://cdn.example/agent.txt"></head></html>', {
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+      })
+    }
+    return new Response('<html><head></head></html>', { status: 200, headers: { 'content-type': 'text/html' } })
+  })
+  assert.equal(await cap.discover('example.com'), null)
+  assert.ok(calls.some((call) => call.url === 'https://example.com/'))
+  assert.equal(calls.some((call) => call.url === 'https://cdn.example/agent.txt'), false)
+})
+
+test('a valid agent.txt wins over a homepage link', async () => {
+  const { cap, calls } = client(async ({ url }) => {
+    if (url.endsWith('/agent.txt')) return textResponse(200, AGENT)
+    return new Response('<html><head><link rel="agent" href="https://cdn.example/agent.txt"></head></html>', {
+      status: 200,
+      headers: { 'content-type': 'text/html' },
+    })
+  })
+  const door = await cap.discover('example.com')
+  assert.equal(door.name, 'Harbor Goods')
+  assert.equal(door.source, undefined)
   assert.equal(calls.length, 1)
 })
 
@@ -290,8 +384,9 @@ test('get reads one message and does not poll', async () => {
 test('a missing door stays cached', async () => {
   const { cap, calls } = client(async () => textResponse(404, ''))
   assert.equal(await cap.discover('example.com'), null)
+  assert.equal(calls.length, 2)
   assert.equal(await cap.discover('example.com'), null)
-  assert.equal(calls.length, 1)
+  assert.equal(calls.length, 2)
 })
 
 test('login opens the company page and stores the token from the redirect', async () => {

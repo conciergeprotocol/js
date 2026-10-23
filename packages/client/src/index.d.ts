@@ -18,6 +18,8 @@ export type Door = {
   oauth: string | null
   spec: string | null
   origin: string
+  /** Set when the file was not served at /agent.txt on the company site. */
+  source?: 'redirect' | 'link-header' | 'link-tag'
   extra: Record<string, string>
 }
 

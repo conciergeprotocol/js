@@ -12,6 +12,7 @@ export function createTools(cap) {
         name: door.name,
         chat: door.chat,
         login: Boolean(door.oauth),
+        found: door.source || 'agent.txt',
       }
     },
 

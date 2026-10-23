@@ -23,8 +23,13 @@ test('cap_discover reports a door and a missing door', async () => {
     name: 'Leo',
     chat: 'https://www.example.com/chat',
     login: false,
+    found: 'agent.txt',
   })
   assert.deepEqual(await tools.cap_discover({ domain: 'example.net' }), { door: false })
+  const linked = createTools({
+    discover: async () => ({ ...door, source: 'link-header' }),
+  })
+  assert.equal((await linked.cap_discover({ domain: 'example.com' })).found, 'link-header')
 })
 
 test('cap_ask returns the reply and a conversation id', async () => {

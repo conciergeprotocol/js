@@ -82,41 +82,174 @@ export function parseAgentTxt(text, origin) {
   }
 }
 
-async function readDoor(response, finalUrl) {
-  if (response.status !== 200) return { door: null, ttl: MISSING_TTL }
-  const type = response.headers.get('content-type') || ''
-  if (/text\/html|application\/xhtml/i.test(type)) return { door: null, ttl: MISSING_TTL }
-  const length = Number(response.headers.get('content-length'))
-  if (Number.isFinite(length) && length > MAX_FILE) return { door: null, ttl: MISSING_TTL }
+const REDIRECTS = new Set([301, 302, 303, 307, 308])
+const HOME_MAX = 256 * 1024
+
+function miss(fallback = true) {
+  return { door: null, ttl: MISSING_TTL, fallback }
+}
+
+function safeNext(response, current) {
+  const location = response.headers.get('location')
+  if (!location) return null
+  let next
+  try {
+    next = new URL(location, current)
+  } catch {
+    return null
+  }
+  if (!allowedProtocol(next) || next.username || next.password) return null
+  next.hash = ''
+  return next
+}
+
+function attr(tag, name) {
+  const match = tag.match(new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>]+))`, 'i'))
+  return match ? (match[1] ?? match[2] ?? match[3] ?? '') : ''
+}
+
+export function agentLinkHeader(header) {
+  if (!header) return null
+  const parts = String(header).split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
+  for (const part of parts) {
+    const uri = part.match(/<([^>]*)>/)
+    if (!uri) continue
+    const rel = part.match(/(?:^|\s|;)\s*rel\s*=\s*(?:"([^"]*)"|([^;,]+))/i)
+    const types = (rel?.[1] ?? rel?.[2] ?? '').toLowerCase().trim().split(/\s+/)
+    if (types.includes('agent')) return uri[1].trim()
+  }
+  return null
+}
+
+export function agentLinkHref(html) {
+  const source = String(html || '')
+  const bodyAt = source.search(/<body\b/i)
+  const headAt = source.search(/<\/head>/i)
+  let cut = source.length
+  if (bodyAt !== -1) cut = Math.min(cut, bodyAt)
+  if (headAt !== -1) cut = Math.min(cut, headAt)
+  const tags = source.slice(0, cut).match(/<link\b[^>]*>/gi) || []
+  for (const tag of tags) {
+    const rel = attr(tag, 'rel').toLowerCase().split(/\s+/)
+    if (!rel.includes('agent')) continue
+    const href = attr(tag, 'href')
+    if (href) return href
+  }
+  return null
+}
+
+async function textLimited(response, max) {
+  if (response.body?.getReader) {
+    const reader = response.body.getReader()
+    const chunks = []
+    let size = 0
+    while (size < max) {
+      const { done, value } = await reader.read()
+      if (done) break
+      const take = Math.min(value.length, max - size)
+      chunks.push(take === value.length ? value : value.subarray(0, take))
+      size += take
+      if (take < value.length) break
+    }
+    try { await reader.cancel() } catch { /* the body is already finished */ }
+    const bytes = new Uint8Array(size)
+    let offset = 0
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset)
+      offset += chunk.length
+    }
+    return new TextDecoder().decode(bytes)
+  }
   const text = await response.text()
-  if (text.length > MAX_FILE || text.trimStart().startsWith('<')) return { door: null, ttl: MISSING_TTL }
+  return text.slice(0, max)
+}
+
+async function readDoor(response, finalUrl) {
+  if (response.status !== 200) return miss(true)
+  const type = response.headers.get('content-type') || ''
+  if (/text\/html|application\/xhtml/i.test(type)) return miss(true)
+  const length = Number(response.headers.get('content-length'))
+  if (Number.isFinite(length) && length > MAX_FILE) return miss(false)
+  const text = await response.text()
+  if (text.length > MAX_FILE) return miss(false)
+  if (text.trimStart().startsWith('<')) return miss(true)
   const door = parseAgentTxt(text, new URL(finalUrl).origin)
-  if (!door) return { door: null, ttl: MISSING_TTL }
+  if (!door) return miss(true)
   return { door, ttl: cacheTtl(response.headers.get('cache-control'), FOUND_TTL) }
 }
 
-export async function fetchDoor(input, fetchImpl) {
-  const start = agentTxtUrl(input)
-  if (!start) return { door: null, ttl: MISSING_TTL }
+async function followFile(start, fetchImpl) {
   let current = start
+  let company = new URL(start)
+  let leftSite = false
   for (let hop = 0; hop < 5; hop += 1) {
     const response = await fetchImpl(current, {
       redirect: 'manual',
       headers: { accept: 'text/plain, text/markdown, */*' },
     })
-    if ([301, 302, 303, 307, 308].includes(response.status)) {
-      const location = response.headers.get('location')
-      if (!location) return { door: null, ttl: MISSING_TTL }
-      const next = new URL(location, current)
-      if (!allowedProtocol(next) || !sameSite(start.hostname, next.hostname)) {
-        return { door: null, ttl: MISSING_TTL }
-      }
-      next.username = ''
-      next.password = ''
+    if (REDIRECTS.has(response.status)) {
+      const next = safeNext(response, current)
+      if (!next) return miss(false)
+      if (sameSite(start.hostname, next.hostname)) company = next
+      else leftSite = true
       current = next
       continue
     }
-    return readDoor(response, current)
+    const read = await readDoor(response, current)
+    if (read.door) {
+      read.door.origin = leftSite ? company.origin : new URL(current).origin
+      if (leftSite) read.door.source = 'redirect'
+    }
+    return read
   }
-  return { door: null, ttl: MISSING_TTL }
+  return miss(true)
+}
+
+async function findPointer(start, fetchImpl) {
+  let current = new URL(start.origin)
+  for (let hop = 0; hop < 5; hop += 1) {
+    const response = await fetchImpl(current, {
+      redirect: 'manual',
+      headers: { accept: 'text/html' },
+    })
+    if (REDIRECTS.has(response.status)) {
+      const next = safeNext(response, current)
+      if (!next || !sameSite(start.hostname, next.hostname)) return null
+      current = next
+      continue
+    }
+    if (response.status !== 200) return null
+    const headerHref = agentLinkHeader(response.headers.get('link'))
+    let raw = headerHref
+    let source = 'link-header'
+    if (!raw) {
+      raw = agentLinkHref(await textLimited(response, HOME_MAX))
+      source = 'link-tag'
+    }
+    if (!raw) return null
+    let target
+    try {
+      target = new URL(raw, current)
+    } catch {
+      return null
+    }
+    if (!allowedProtocol(target) || target.username || target.password) return null
+    target.hash = ''
+    return { target, source, origin: new URL(current).origin }
+  }
+  return null
+}
+
+export async function fetchDoor(input, fetchImpl) {
+  const start = agentTxtUrl(input)
+  if (!start) return { door: null, ttl: MISSING_TTL }
+  const direct = await followFile(start, fetchImpl)
+  if (direct.door || direct.fallback === false) return direct
+  const pointer = await findPointer(start, fetchImpl)
+  if (!pointer) return { door: null, ttl: MISSING_TTL }
+  const file = await followFile(pointer.target, fetchImpl)
+  if (!file.door) return { door: null, ttl: MISSING_TTL }
+  file.door.origin = pointer.origin
+  file.door.source = pointer.source
+  return file
 }

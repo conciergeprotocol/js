@@ -37,6 +37,8 @@ const price = await thread.ask('How much is the cheapest paid plan?')
 
 `discover` returns `null`. `ask` throws `NoDoorError`. That is the signal to browse the site instead.
 
+`discover` reads `https://{domain}/agent.txt`. A redirect may go to any https URL. When that file is missing, an HTML page, or has no `CAP` line, it reads the homepage and follows `Link: <url>; rel="agent"` or `<link rel="agent" href="url">` in the head. `door.origin` stays the company's domain. `door.source` is `redirect`, `link-header`, or `link-tag` when the file was not at the root.
+
 ```js
 import { createClient, NoDoorError } from '@conciergeprotocol/client'
 
