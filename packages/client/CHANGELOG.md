@@ -1,5 +1,11 @@
 # @conciergeprotocol/client
 
+## 0.1.6
+
+### Patch Changes
+
+- 622ca03: Discover follows an https redirect from /agent.txt, and when that file is missing, a homepage Link header or link rel="agent". cap_discover reports where the door was found.
+
 ## 0.1.5
 
 ## 0.1.4
