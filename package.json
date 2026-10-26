@@ -6,7 +6,7 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "node --test packages/client/test/*.test.js packages/mcp/test/*.test.js",
+    "test": "node --test packages/client/test/*.test.js packages/mcp/test/*.test.js packages/server/test/*.test.js packages/agent/test/*.test.js",
     "test:live": "node --test packages/mcp/test/live/*.test.js",
     "changeset": "changeset",
     "version": "changeset version && node scripts/sync-registry-version.mjs && bun install",

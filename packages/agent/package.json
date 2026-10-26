@@ -1,0 +1,39 @@
+{
+  "name": "@conciergeprotocol/agent",
+  "version": "0.0.0",
+  "description": "Build a CAP answer function from a model, an llms.txt file, and MCP tools.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://conciergeprotocol.org",
+  "keywords": [
+    "concierge",
+    "cap",
+    "agents",
+    "ai"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciergeprotocol/js.git",
+    "directory": "packages/agent"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@ai-sdk/mcp": "^2.0.85",
+    "ai": "^7.0.154",
+    "zod": "^4.6.7"
+  }
+}
