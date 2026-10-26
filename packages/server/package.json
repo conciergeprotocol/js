@@ -1,0 +1,42 @@
+{
+  "name": "@conciergeprotocol/server",
+  "version": "0.0.0",
+  "description": "Run a Concierge Agent Protocol front door. You write the answer.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    }
+  },
+  "bin": {
+    "cap-server": "./src/cli.js",
+    "cap-check": "./src/check.js"
+  },
+  "files": [
+    "src"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://conciergeprotocol.org",
+  "keywords": [
+    "concierge",
+    "cap",
+    "agents",
+    "protocol",
+    "server"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciergeprotocol/js.git",
+    "directory": "packages/server"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "optionalDependencies": {
+    "pg": "^8.16.0"
+  }
+}

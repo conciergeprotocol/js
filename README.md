@@ -1,13 +1,15 @@
 # Concierge Agent Protocol for JavaScript
 
-Two packages for calling a CAP front door. `@conciergeprotocol/client` is the library. `@conciergeprotocol/mcp` is that library behind three tools, so Claude, Cursor, and other MCP hosts can ask a company.
+Packages for both sides of a CAP front door. `@conciergeprotocol/client` calls a door. `@conciergeprotocol/mcp` exposes that client as three tools, so Claude, Cursor, and other MCP hosts can ask a company. `@conciergeprotocol/server` runs a door from one `answer` function. `@conciergeprotocol/agent` builds that function from a model, an `llms.txt` file, and MCP tools.
 
-The protocol is at [conciergeprotocol.org](https://conciergeprotocol.org). These packages only call a front door. A company publishes `agent.txt`. It does not publish an MCP server.
+The protocol is at [conciergeprotocol.org](https://conciergeprotocol.org). A company publishes `agent.txt`. It does not publish an MCP server for visitors. An MCP server, when there is one, stays behind the door.
 
 ## Install
 
 - [@conciergeprotocol/client](https://www.npmjs.com/package/@conciergeprotocol/client)
 - [@conciergeprotocol/mcp](https://www.npmjs.com/package/@conciergeprotocol/mcp)
+- [@conciergeprotocol/server](https://www.npmjs.com/package/@conciergeprotocol/server)
+- [@conciergeprotocol/agent](https://www.npmjs.com/package/@conciergeprotocol/agent)
 
 ```sh
 npm install @conciergeprotocol/client
@@ -61,6 +63,30 @@ Cursor, Claude Desktop, and VS Code use the same block. In VS Code it goes in `.
 ```
 
 `CAP_FROM` defaults to `agent:cap-mcp`. The tools are `cap_discover`, `cap_ask`, and `cap_check`. The server is listed in the MCP registry as `io.github.conciergeprotocol/mcp`. `cap_ask` waits 60 seconds. If the company is still answering, it returns the message id and the model calls `cap_check` instead of guessing.
+
+## Run a door
+
+`answer` is the company's own function. The server keeps the thread, hides one caller's reply from another, and enforces the daily message cap.
+
+```js
+import { createAnswer } from '@conciergeprotocol/agent'
+import { createCapServer } from '@conciergeprotocol/server'
+
+const answer = await createAnswer({
+  model: 'anthropic/claude-sonnet-4.5',
+  instructions: 'You answer for Harbor Goods. Link to the page.',
+  sources: [{ type: 'llms', url: 'https://harborgoods.example/llms.txt' }],
+})
+
+const cap = await createCapServer({
+  agent: { name: 'Harbor Goods', chat: 'https://harborgoods.example/chat' },
+  answer,
+})
+
+await cap.listen(8088)
+```
+
+A company that already has a bot can skip the agent package and pass its own `answer`. `npx cap-check http://127.0.0.1:8088` reads `agent.txt`, asks one question, and checks that a second caller cannot read the reply.
 
 ## Release
 
