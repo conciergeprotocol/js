@@ -1,6 +1,6 @@
 {
   "name": "@conciergeprotocol/agent",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Build a CAP answer function from a model, an llms.txt file, and MCP tools.",
   "type": "module",
   "exports": {
