@@ -38,6 +38,11 @@ export type CapServerOptions = {
   answer: Answer
   /** Checks the company's own user store. Returning an account id turns on OAuth. */
   login?: (input: { username: string; password: string }) => string | null | Promise<string | null>
+  /**
+   * Reads the company's own session from the request headers and returns the
+   * signed-in account id. The login and confirm pages then ask only for the decision.
+   */
+  currentAccount?: (input: { headers: Record<string, string | string[] | undefined> }) => string | null | Promise<string | null>
   /** Runs once after a person approves a held action. */
   act?: (input: { account: string; authorization_details: unknown; caller: string }) => { message: string } | { error: { message: string } } | Promise<{ message: string } | { error: { message: string } }>
   write?: boolean

@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { isIP } from 'node:net'
 import { readBody, send } from './http.mjs'
 
@@ -13,6 +13,8 @@ const MAX_CLIENT_DOC = 16_000
 const CAP_FROM_RE = /^agent:([A-Za-z0-9_.-]{1,64})$/
 const PKCE_RE = /^[A-Za-z0-9._~-]{43,128}$/
 const LOOPBACK = new Set(['127.0.0.1', '[::1]'])
+const FORM_COOKIE = 'cap_form'
+const FORM_TTL_SECONDS = 600
 
 const random = (bytes = 32) => randomBytes(bytes).toString('base64url')
 const s256 = (verifier) => createHash('sha256').update(verifier).digest('base64url')
@@ -33,6 +35,19 @@ function withParams(uri, params) {
   const url = new URL(uri)
   for (const [key, value] of Object.entries(params)) if (value) url.searchParams.set(key, value)
   return url.toString()
+}
+
+export function cookieValue(header, name) {
+  for (const part of String(header || '').split(';')) {
+    const split = part.indexOf('=')
+    if (split > 0 && part.slice(0, split).trim() === name) return part.slice(split + 1).trim()
+  }
+  return ''
+}
+
+function sameToken(a, b) {
+  if (!a || !b || a.length !== b.length) return false
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b))
 }
 
 async function readForm(req) {
@@ -155,6 +170,9 @@ export async function resolveDeviceClient(clientId, clientName, options) {
  * with PKCE, client id metadata documents, refresh rotation, and revocation.
  *
  * `login({ username, password })` resolves to the account id, or null.
+ * `currentAccount({ headers })` reads the company's own session from the
+ * request and resolves to the signed-in account id, or null. When it finds
+ * one, the login and confirm pages ask only for the decision.
  * `write` offers the `write` scope. `act({ account, authorization_details, caller })`
  * runs an action the person approved on the confirm page, and resolves to
  * `{ message }` or `{ error: { message } }`.
@@ -162,7 +180,8 @@ export async function resolveDeviceClient(clientId, clientName, options) {
 export function createOAuth({
   store,
   agentName,
-  login,
+  login = async () => null,
+  currentAccount = null,
   path = '/oauth',
   accessTokenSeconds = 3600,
   writeAccessTokenSeconds = 900,
@@ -195,24 +214,82 @@ export function createOAuth({
     }
   }
 
+  async function sessionAccount(req) {
+    if (!currentAccount) return null
+    try {
+      const account = await currentAccount({ headers: req.headers })
+      return typeof account === 'string' && account ? account : null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * A signed-in approval is one click, so a cross-site form must not be able
+   * to make it. The page sets a SameSite=Strict cookie and posts the same value.
+   */
+  function formGuard(origin) {
+    const token = random(24)
+    const secure = origin.startsWith('https:') ? '; Secure' : ''
+    return {
+      token,
+      headers: { 'set-cookie': `${FORM_COOKIE}=${token}; Path=${path}; Max-Age=${FORM_TTL_SECONDS}; HttpOnly; SameSite=Strict${secure}` },
+    }
+  }
+
+  async function guardFor(req, origin, account = null) {
+    const signedIn = await sessionAccount(req)
+    if (!signedIn || (account && signedIn !== account)) return null
+    return formGuard(origin)
+  }
+
+  function guardFields(guard) {
+    return guard
+      ? `<input type="hidden" name="form_token" value="${escape(guard.token)}"><p class="muted">You are signed in.</p>`
+      : `<label>Username <input name="username" autocomplete="username" required></label>
+<label>Password <input name="password" type="password" autocomplete="current-password" required></label>`
+  }
+
+  /** The signed-in account when the form came from this site's own page, else the password login. */
+  async function approver(req, form) {
+    if (form.get('form_token')) {
+      const posted = form.get('form_token') || ''
+      if (!sameToken(posted, cookieValue(req.headers.cookie, FORM_COOKIE))) return null
+      return sessionAccount(req)
+    }
+    const username = form.get('username') || ''
+    const password = form.get('password') || ''
+    if (!username || !password) return null
+    return login({ username, password })
+  }
+
+  const failedLogin = (form) => (form.get('form_token')
+    ? 'Your sign-in could not be checked. Reload this page and try again.'
+    : 'That username and password did not match.')
+
   const wants = (scope) => (scope === 'write'
     ? `wants ${escape(agentName)} to read your account and make changes for you.`
     : `wants to ask ${escape(agentName)} about your account.`)
 
-  function decisionButtons(scope) {
+  function decisionButtons(scope, signedIn = false) {
+    const lead = signedIn ? 'Allow' : 'Log in and allow'
     const allow = scope === 'write'
-      ? '<button name="decision" value="allow_write">Log in and allow changes</button><button name="decision" value="allow">Allow read only</button>'
-      : '<button name="decision" value="allow">Log in and allow</button>'
+      ? `<button name="decision" value="allow_write">${lead} changes</button><button name="decision" value="allow">Allow read only</button>`
+      : `<button name="decision" value="allow">${lead}</button>`
     const warning = scope === 'write'
       ? '<p class="muted">Allow changes only if you asked this agent to make them. Deletes and other actions that are hard to undo still need your OK each time.</p>'
       : ''
     return `${warning}<div class="row">${allow}<button name="decision" value="deny" formnovalidate>Deny</button></div>`
   }
 
-  function page(res, status, { title, body }) {
+  function page(res, status, { title, body, guard = null }) {
     send(res, status, null, {
       type: 'text/html; charset=utf-8',
-      headers: { 'x-frame-options': 'DENY', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'" },
+      headers: {
+        'x-frame-options': 'DENY',
+        'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'",
+        ...(guard ? guard.headers : {}),
+      },
       raw: `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escape(title)}</title>
 <style>body{font:16px/1.5 system-ui,sans-serif;max-width:420px;margin:48px auto;padding:0 20px}label{display:block;margin-top:12px}input{width:100%;padding:8px;font:inherit;box-sizing:border-box}.row{display:flex;gap:8px;margin-top:20px}button{padding:10px 14px;font:inherit}.muted{color:#666}.error{color:#b00020}</style>
 </head><body>${body}</body></html>`,
@@ -223,9 +300,10 @@ export function createOAuth({
     page(res, status, { title: 'Login error', body: `<h1>Login error</h1><p>${escape(message)}</p><p class="muted">Go back to your agent and start again.</p>` })
   }
 
-  function consentPage(res, status, id, pending, error = '') {
+  function consentPage(res, status, id, pending, error = '', guard = null) {
     const { client } = pending
     page(res, status, {
+      guard,
       title: `Log in to ${agentName}`,
       body: `<h1>Log in to ${escape(agentName)}</h1>
 <p><strong>${escape(client.name)}</strong> (${escape(client.host)}) ${wants(pending.scope)}</p>
@@ -234,14 +312,13 @@ ${error ? `<p class="error">${escape(error)}</p>` : ''}
 ${hint ? `<p class="muted">${escape(hint)}</p>` : ''}
 <form method="post" action="${escape(path)}/authorize">
 <input type="hidden" name="request" value="${escape(id)}">
-<label>Username <input name="username" autocomplete="username" required></label>
-<label>Password <input name="password" type="password" autocomplete="current-password" required></label>
-${decisionButtons(pending.scope)}
+${guardFields(guard)}
+${decisionButtons(pending.scope, Boolean(guard))}
 </form>`,
     })
   }
 
-  async function authorizeStart(res, url, origin) {
+  async function authorizeStart(req, res, url, origin) {
     const q = url.searchParams
     const clientId = q.get('client_id') || ''
     const redirectUri = q.get('redirect_uri') || ''
@@ -265,7 +342,7 @@ ${decisionButtons(pending.scope)}
     const id = random(24)
     const pending = { client: found.client, redirectUri, state, scope, codeChallenge: q.get('code_challenge'), expires: now + REQUEST_TTL_MS }
     requests.set(id, pending)
-    consentPage(res, 200, id, pending)
+    consentPage(res, 200, id, pending, '', await guardFor(req, origin))
   }
 
   async function authorizeFinish(req, res, origin) {
@@ -282,8 +359,8 @@ ${decisionButtons(pending.scope)}
       requests.delete(id)
       return back({ error: 'access_denied', error_description: 'The person denied access.' })
     }
-    const account = await login({ username: form.get('username') || '', password: form.get('password') || '' })
-    if (!account) return consentPage(res, 401, id, pending, 'That username and password did not match.')
+    const account = await approver(req, form)
+    if (!account) return consentPage(res, 401, id, pending, failedLogin(form), await guardFor(req, origin))
 
     requests.delete(id)
     const code = random()
@@ -335,7 +412,7 @@ ${decisionButtons(pending.scope)}
     })
   }
 
-  function devicePage(res, status, { userCode = '', device = null, error = '', done = '' }) {
+  function devicePage(res, status, { userCode = '', device = null, error = '', done = '', guard = null }) {
     const who = device
       ? device.verified_host
         ? `<p><strong>${escape(device.client_name)}</strong> (${escape(device.verified_host)}) ${wants(device.scope)}</p>`
@@ -350,22 +427,26 @@ ${error ? `<p class="error">${escape(error)}</p>` : ''}
 ${hint ? `<p class="muted">${escape(hint)}</p>` : ''}
 <form method="post" action="${escape(path)}/device/approve">
 <label>Code <input name="user_code" value="${escape(userCode)}" autocomplete="off" required></label>
-<label>Username <input name="username" autocomplete="username" required></label>
-<label>Password <input name="password" type="password" autocomplete="current-password" required></label>
-${decisionButtons(device?.scope)}
+${guardFields(guard)}
+${decisionButtons(device?.scope, Boolean(guard))}
 </form>`
-    page(res, status, { title: `Log in to ${agentName}`, body })
+    page(res, status, { title: `Log in to ${agentName}`, body, guard: done ? null : guard })
   }
 
-  async function deviceView(res, url) {
+  async function deviceView(req, res, url, origin) {
     const userCode = normalizeUserCode(url.searchParams.get('user_code'))
     const device = userCode ? await store.deviceByUserCode(userCode) : null
     const status = device && device.status === 'pending' ? 200 : userCode ? 400 : 200
     const error = userCode && (!device || device.status !== 'pending') ? 'That code is expired or already used.' : ''
-    devicePage(res, status, { userCode: device ? userCode : '', device: device && device.status === 'pending' ? device : null, error })
+    devicePage(res, status, {
+      userCode: device ? userCode : '',
+      device: device && device.status === 'pending' ? device : null,
+      error,
+      guard: await guardFor(req, origin),
+    })
   }
 
-  async function deviceApprove(req, res) {
+  async function deviceApprove(req, res, origin) {
     const form = await readForm(req)
     if (!form) return devicePage(res, 400, { error: 'The body must be a form.' })
     const userCode = normalizeUserCode(form.get('user_code'))
@@ -378,8 +459,8 @@ ${decisionButtons(device?.scope)}
       await store.decideDevice(userCode, { status: 'denied' })
       return devicePage(res, 200, { done: 'Access denied' })
     }
-    const account = await login({ username: form.get('username') || '', password: form.get('password') || '' })
-    if (!account) return devicePage(res, 401, { userCode, device, error: 'That username and password did not match.' })
+    const account = await approver(req, form)
+    if (!account) return devicePage(res, 401, { userCode, device, error: failedLogin(form), guard: await guardFor(req, origin) })
     // An agent that cannot keep polling asks once the person says so, so the
     // token stays collectable for a full window after approval.
     const scope = grantedScope(device.scope, decision)
@@ -482,13 +563,14 @@ ${decisionButtons(device?.scope)}
     expired: 'This request expired',
   }
 
-  function confirmPage(res, status, { confirmation = null, error = '', done = '', message = '' }) {
+  function confirmPage(res, status, { confirmation = null, error = '', done = '', message = '', guard = null }) {
     if (done || !confirmation) {
       const heading = done || 'Request not found'
       const note = message || (confirmation ? 'Go back to your agent.' : 'It may have expired. Ask your agent again.')
       return page(res, status, { title: heading, body: `<h1>${escape(heading)}</h1><p class="muted">${escape(note)}</p>` })
     }
     page(res, status, {
+      guard,
       title: `Confirm with ${agentName}`,
       body: `<h1>Confirm with ${escape(agentName)}</h1>
 <p><strong>${escape(confirmation.summary)}</strong></p>
@@ -497,26 +579,25 @@ ${error ? `<p class="error">${escape(error)}</p>` : ''}
 ${hint ? `<p class="muted">${escape(hint)}</p>` : ''}
 <form method="post" action="${escape(path)}/confirm">
 <input type="hidden" name="id" value="${escape(confirmation.id)}">
-<label>Username <input name="username" autocomplete="username" required></label>
-<label>Password <input name="password" type="password" autocomplete="current-password" required></label>
-<div class="row"><button name="decision" value="approve">Log in and approve</button><button name="decision" value="deny" formnovalidate>Deny</button></div>
+${guardFields(guard)}
+<div class="row"><button name="decision" value="approve">${guard ? 'Approve' : 'Log in and approve'}</button><button name="decision" value="deny" formnovalidate>Deny</button></div>
 </form>`,
     })
   }
 
   const isOpen = (c) => c && c.status === 'pending' && Date.parse(c.expires_at) > Date.now()
 
-  async function confirmView(res, url) {
+  async function confirmView(req, res, url, origin) {
     const confirmation = await store.confirmationById(url.searchParams.get('id') || '')
     if (!confirmation) return confirmPage(res, 404, {})
     if (!isOpen(confirmation)) {
       const status = confirmation.status === 'pending' ? 'expired' : confirmation.status
       return confirmPage(res, 200, { confirmation, done: CONFIRM_DONE[status] || 'This request is closed' })
     }
-    confirmPage(res, 200, { confirmation })
+    confirmPage(res, 200, { confirmation, guard: await guardFor(req, origin, confirmation.account) })
   }
 
-  async function confirmDecide(req, res) {
+  async function confirmDecide(req, res, origin) {
     const form = await readForm(req)
     const confirmation = form ? await store.confirmationById(form.get('id') || '') : null
     if (!confirmation) return confirmPage(res, 404, {})
@@ -529,9 +610,13 @@ ${hint ? `<p class="muted">${escape(hint)}</p>` : ''}
       return confirmPage(res, 200, { confirmation, done: CONFIRM_DONE.denied, message: 'Nothing changed. Go back to your agent.' })
     }
     // The person who approves must be the account the request is for.
-    const account = await login({ username: form.get('username') || '', password: form.get('password') || '' })
+    const account = await approver(req, form)
     if (!account || account !== confirmation.account) {
-      return confirmPage(res, 401, { confirmation, error: 'That login does not match the account this request is for.' })
+      return confirmPage(res, 401, {
+        confirmation,
+        error: 'That login does not match the account this request is for.',
+        guard: await guardFor(req, origin, confirmation.account),
+      })
     }
     const claimed = await store.claimConfirmation(confirmation.id, 'working')
     if (!claimed) return confirmPage(res, 400, { confirmation, done: 'This request is closed' })
@@ -552,8 +637,8 @@ ${hint ? `<p class="muted">${escape(hint)}</p>` : ''}
 
   async function handle(req, res, url, origin) {
     if (url.pathname === `${path}/confirm`) {
-      if (req.method === 'GET') await confirmView(res, url)
-      else if (req.method === 'POST') await confirmDecide(req, res)
+      if (req.method === 'GET') await confirmView(req, res, url, origin)
+      else if (req.method === 'POST') await confirmDecide(req, res, origin)
       else return false
       return true
     }
@@ -562,19 +647,19 @@ ${hint ? `<p class="muted">${escape(hint)}</p>` : ''}
       return true
     }
     if (url.pathname === `${path}/authorize`) {
-      if (req.method === 'GET') await authorizeStart(res, url, origin)
+      if (req.method === 'GET') await authorizeStart(req, res, url, origin)
       else if (req.method === 'POST') await authorizeFinish(req, res, origin)
       else return false
       return true
     }
     if (url.pathname === `${path}/device`) {
       if (req.method === 'POST') await deviceStart(req, res, origin)
-      else if (req.method === 'GET') await deviceView(res, url)
+      else if (req.method === 'GET') await deviceView(req, res, url, origin)
       else return false
       return true
     }
     if (req.method === 'POST' && url.pathname === `${path}/device/approve`) {
-      await deviceApprove(req, res)
+      await deviceApprove(req, res, origin)
       return true
     }
     if (req.method === 'POST' && url.pathname === `${path}/token`) {
