@@ -102,6 +102,19 @@ const cap = await createCapServer({
 
 With a token, `answer` receives `account` and `scope` (`read` or `write`). A token sent by a different agent is `403`.
 
+If people are usually signed in to your site already, pass `currentAccount` too. It reads your own session from the request headers and returns the account id, or null. When it finds one, the login and confirm pages show only Allow or Approve. Without a session, they fall back to `login`. A confirm page asks for a login when the session is for a different account than the request.
+
+```js
+const cap = await createCapServer({
+  agent: { name: 'Harbor Goods' },
+  answer,
+  login: async ({ username, password }) => verifyUser(username, password),
+  currentAccount: async ({ headers }) => accountFromSessionCookie(headers.cookie),
+})
+```
+
+Serve `/oauth` on the same origin as your sign-in, so your session cookie reaches it. A signed-in approval also needs a `SameSite=Strict` cookie the page sets, so a form on another site cannot submit it.
+
 To hold a change for the person's approval, return `{ confirm: { summary, authorization_details }, reply }` instead of running it. After they approve, the server calls `act` once.
 
 ## cap.json

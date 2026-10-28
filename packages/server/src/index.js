@@ -35,11 +35,12 @@ export async function createCapServer(options = {}) {
     }
   }
 
-  const oauth = options.login
+  const oauth = options.login || options.currentAccount
     ? createOAuth({
       store,
       agentName: agent.name,
       login: options.login,
+      currentAccount: options.currentAccount || null,
       write: Boolean(options.write),
       act: options.act || null,
       accessTokenSeconds: options.accessTokenSeconds ?? 3600,

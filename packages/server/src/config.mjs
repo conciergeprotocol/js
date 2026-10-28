@@ -79,11 +79,12 @@ export async function boot(options = {}) {
     }
   }
   const oauthConfig = config.oauth
-  const oauth = oauthConfig || options.login
+  const oauth = oauthConfig || options.login || options.currentAccount
     ? createOAuth({
       store,
       agentName: config.agent.name,
       login: options.login || accountsLogin(oauthConfig?.accounts),
+      currentAccount: options.currentAccount || null,
       write: Boolean(oauthConfig?.write),
       act: options.act || handlerAct(config.handler),
       accessTokenSeconds: oauthConfig?.access_token_seconds ?? 3600,

@@ -182,6 +182,114 @@ test('login adds the OAuth line', async () => {
   }
 })
 
+const form = (fields) => ({
+  method: 'POST',
+  headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  body: new URLSearchParams(fields).toString(),
+})
+
+const sessionFrom = ({ headers }) => {
+  const match = /(?:^|;\s*)shop_session=([a-z]+)/.exec(headers.cookie || '')
+  return match ? match[1] : null
+}
+
+async function startDevice(root) {
+  const res = await fetch(`${root}/oauth/device`, form({ client_id: 'agent:visitor', scope: 'read' }))
+  return res.json()
+}
+
+async function signedInPage(url, account) {
+  const res = await fetch(url, { headers: { cookie: `shop_session=${account}` } })
+  const html = await res.text()
+  const token = /name="form_token" value="([^"]+)"/.exec(html)?.[1] || ''
+  const formCookie = /cap_form=([^;]+)/.exec(res.headers.get('set-cookie') || '')?.[1] || ''
+  return { html, token, formCookie }
+}
+
+test('a signed-in person approves a code login without a password', async () => {
+  const { cap, root } = await start({
+    agent: { name: 'Harbor Goods' },
+    answer: async ({ account }) => (account ? `account ${account}` : 'public'),
+    login: async () => null,
+    currentAccount: sessionFrom,
+  })
+  try {
+    const device = await startDevice(root)
+    const page = await signedInPage(device.verification_uri_complete, 'maya')
+    assert.match(page.html, /You are signed in/)
+    assert.doesNotMatch(page.html, /name="password"/)
+    assert.ok(page.token && page.formCookie)
+
+    const approved = await fetch(`${root}/oauth/device/approve`, {
+      ...form({ user_code: device.user_code, form_token: page.token, decision: 'allow' }),
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        cookie: `shop_session=maya; cap_form=${page.formCookie}`,
+      },
+    })
+    assert.equal(approved.status, 200)
+
+    const token = await (await fetch(`${root}/oauth/token`, form({
+      grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+      device_code: device.device_code,
+      client_id: 'agent:visitor',
+    }))).json()
+    assert.ok(token.access_token)
+    const reply = await post(root, 'my order', { authorization: `Bearer ${token.access_token}` })
+    assert.equal(reply.body.reply, 'account maya')
+  } finally {
+    await cap.close()
+  }
+})
+
+test('a signed-in approval needs the form cookie from the same site', async () => {
+  const { cap, root } = await start({
+    agent: { name: 'Harbor Goods' },
+    answer: async () => 'ok',
+    currentAccount: sessionFrom,
+  })
+  try {
+    const device = await startDevice(root)
+    const page = await signedInPage(device.verification_uri_complete, 'maya')
+    const forged = await fetch(`${root}/oauth/device/approve`, {
+      ...form({ user_code: device.user_code, form_token: page.token, decision: 'allow' }),
+      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: 'shop_session=maya' },
+    })
+    assert.equal(forged.status, 401)
+    const polled = await (await fetch(`${root}/oauth/token`, form({
+      grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+      device_code: device.device_code,
+      client_id: 'agent:visitor',
+    }))).json()
+    assert.equal(polled.error, 'authorization_pending')
+  } finally {
+    await cap.close()
+  }
+})
+
+test('a confirm page signed in as another account asks for a login', async () => {
+  const { cap, root } = await start({
+    agent: { name: 'Harbor Goods' },
+    answer: async () => ({ confirm: { summary: 'Cancel order 1.', authorization_details: [{ type: 'cancel' }] } }),
+    write: true,
+    act: async () => ({ message: 'Cancelled.' }),
+    grants: [{ token: 'tok_write', account: 'maya', client: 'visitor', scope: 'write' }],
+    currentAccount: sessionFrom,
+  })
+  try {
+    const held = await post(root, 'cancel', { authorization: 'Bearer tok_write' })
+    const url = held.body.confirmation.url
+    const other = await signedInPage(url, 'sam')
+    assert.equal(other.token, '')
+    assert.match(other.html, /name="password"/)
+    const owner = await signedInPage(url, 'maya')
+    assert.ok(owner.token)
+    assert.match(owner.html, />Approve</)
+  } finally {
+    await cap.close()
+  }
+})
+
 test('agent.name and answer are required', async () => {
   await assert.rejects(() => createCapServer({ answer: async () => 'x' }), /agent\.name/)
   await assert.rejects(() => createCapServer({ agent: { name: 'Harbor' } }), /answer function/)
