@@ -168,6 +168,45 @@ export function createCapServer({
     return { grant }
   }
 
+  /**
+   * The account behind a request's bearer token, for the owner's own account
+   * routes. Null without a valid token for the agent named in CAP-From.
+   */
+  async function accountFor(req) {
+    const caller = callerId(req)
+    if (!caller || !req.headers.authorization) return null
+    const access = await grantFor(req, caller)
+    if (!access.grant) return null
+    return { account: access.grant.account, scope: access.grant.scope === 'write' ? 'write' : 'read', caller }
+  }
+
+  /** Holds an action from an owner's account route until the person approves it. */
+  async function requestApproval(req, { summary, authorization_details } = {}) {
+    const access = await accountFor(req)
+    if (!access) return { error: { code: 'login_required', message: 'Log in to make this change.' } }
+    if (access.scope !== 'write') {
+      return { error: { code: 'write_required', message: 'This login can read but not make changes. Log in again and allow changes.' } }
+    }
+    if (!oauth?.canConfirm) return { error: { code: 'failed', message: `${agent.name} cannot hold an action for approval.` } }
+    const text = String(summary || '').trim().slice(0, MAX_SUMMARY)
+    if (!text) return { error: { code: 'invalid_request', message: 'summary is required.' } }
+    const id = newConfirmationId()
+    const now = Date.now()
+    const expiresAt = new Date(now + CONFIRM_TTL_MS).toISOString()
+    await store.insertConfirmation({
+      id,
+      caller_id: access.caller,
+      account: access.account,
+      client_id: access.caller,
+      message_id: '',
+      summary: text,
+      authorization_details: Array.isArray(authorization_details) ? authorization_details : [],
+      expires_at: expiresAt,
+      created_at: new Date(now).toISOString(),
+    })
+    return { confirmation: { id, status: 'pending', url: oauth.confirmUrl(requestOrigin(req, publicUrl), id), summary: text, expires_at: expiresAt } }
+  }
+
   async function route(req, res) {
     const url = new URL(req.url || '/', 'http://localhost')
     if (req.method === 'OPTIONS') {
@@ -371,5 +410,5 @@ export function createCapServer({
     send(res, 200, await view(msg, origin))
   }
 
-  return { server, handle: onRequest }
+  return { server, handle: onRequest, accountFor, requestApproval }
 }

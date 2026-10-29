@@ -72,7 +72,20 @@ export type ListenAddress = {
   family: string
 }
 
-export type CapServer = {
+export type AccountAccess = { account: string; scope: 'read' | 'write'; caller: string }
+
+export type ApprovalResult =
+  | { confirmation: { id: string; status: 'pending'; url: string; summary: string; expires_at: string } }
+  | AnswerError
+
+export type AccountHelpers = {
+  /** The account behind the request's bearer token, for your own account routes. Null without a valid token for the agent in CAP-From. */
+  accountFor(request: Request | IncomingMessage): Promise<AccountAccess | null>
+  /** Holds an action until the person approves it on the confirm page. `act` runs it once after. */
+  requestApproval(request: Request | IncomingMessage, input: { summary: string; authorization_details?: unknown[] }): Promise<ApprovalResult>
+}
+
+export type CapServer = AccountHelpers & {
   listen(port?: number, host?: string): Promise<ListenAddress | string | null>
   close(): Promise<void>
   fetch(request: Request): Promise<Response>
@@ -81,7 +94,7 @@ export type CapServer = {
 
 export function createCapServer(options: CapServerOptions): Promise<CapServer>
 
-export function createCapHandler(options: CapServerOptions): Promise<{
+export function createCapHandler(options: CapServerOptions): Promise<AccountHelpers & {
   handle(request: Request): Promise<Response>
   close(): Promise<void>
 }>

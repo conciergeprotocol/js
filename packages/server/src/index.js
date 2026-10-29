@@ -71,6 +71,8 @@ export async function createCapServer(options = {}) {
     fetch(request) {
       return handleWeb(node.handle, request)
     },
+    accountFor: (req) => node.accountFor(nodeLike(req)),
+    requestApproval: (req, input) => node.requestApproval(nodeLike(req), input),
     listen(port = Number(process.env.PORT || 8088), host = process.env.HOST || '0.0.0.0') {
       return new Promise((resolve, reject) => {
         node.server.once('error', reject)
@@ -92,8 +94,27 @@ export async function createCapHandler(options) {
   const cap = await createCapServer(options)
   return {
     handle: (request) => cap.fetch(request),
+    accountFor: cap.accountFor,
+    requestApproval: cap.requestApproval,
     close: () => cap.close(),
   }
+}
+
+/** A Fetch API Request reads like a Node request for header checks. */
+function nodeLike(req) {
+  if (typeof req?.headers?.get !== 'function') return req
+  const headers = {}
+  req.headers.forEach((value, key) => {
+    headers[key] = value
+  })
+  try {
+    const url = new URL(req.url)
+    headers.host ||= url.host
+    headers['x-forwarded-proto'] ||= url.protocol.replace(':', '')
+  } catch {
+    // Without a URL the origin falls back to the Host header.
+  }
+  return { headers }
 }
 
 function normalizeAgent(agent) {

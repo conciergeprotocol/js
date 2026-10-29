@@ -117,6 +117,20 @@ Serve `/oauth` on the same origin as your sign-in, so your session cookie reache
 
 To hold a change for the person's approval, return `{ confirm: { summary, authorization_details }, reply }` instead of running it. After they approve, the server calls `act` once.
 
+## Account routes
+
+Another agent can call your own JSON routes with the same token, for example a hosted agent that answers public questions itself and fetches account data from you. `accountFor(request)` checks the bearer token against the agent in `CAP-From` and returns `{ account, scope, caller }`, or null. Filter every query by `account`.
+
+```js
+export async function GET(request) {
+  const access = await door.accountFor(request)
+  if (!access) return Response.json({ error: { code: 'login_required' } }, { status: 401 })
+  return Response.json({ account: access.account, orders: await ordersFor(access.account) })
+}
+```
+
+`requestApproval(request, { summary, authorization_details })` holds a change for the person's OK and returns `{ confirmation: { id, url, summary } }`. It needs a write login and `act`, which runs once after approval.
+
 ## cap.json
 
 `cap-server` reads `cap.json` from the working directory, or `CAP_CONFIG`. The same file the reference server uses:

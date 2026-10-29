@@ -290,6 +290,38 @@ test('a confirm page signed in as another account asks for a login', async () =>
   }
 })
 
+test('accountFor and requestApproval serve the owner\'s own account routes', async () => {
+  const door = await createCapHandler({
+    agent: { name: 'Harbor Goods' },
+    answer: async () => 'ok',
+    sqlitePath: ':memory:',
+    write: true,
+    act: async () => ({ message: 'Cancelled.' }),
+    login: async () => null,
+    grants: [
+      { token: 'tok_read', account: 'maya', client: 'visitor' },
+      { token: 'tok_write', account: 'maya', client: 'visitor', scope: 'write' },
+    ],
+  })
+  const request = (token, from = 'agent:visitor') => new Request('https://harbor.example/api/orders', {
+    headers: { authorization: `Bearer ${token}`, 'cap-from': from },
+  })
+  try {
+    assert.deepEqual(await door.accountFor(request('tok_read')), { account: 'maya', scope: 'read', caller: 'visitor' })
+    assert.equal(await door.accountFor(request('tok_read', 'agent:other')), null)
+    assert.equal(await door.accountFor(request('nope')), null)
+    assert.equal(await door.accountFor(new Request('https://harbor.example/api/orders')), null)
+
+    const readOnly = await door.requestApproval(request('tok_read'), { summary: 'Cancel order 1.' })
+    assert.equal(readOnly.error.code, 'write_required')
+    const held = await door.requestApproval(request('tok_write'), { summary: 'Cancel order 1.', authorization_details: [{ type: 'cancel' }] })
+    assert.equal(held.confirmation.status, 'pending')
+    assert.match(held.confirmation.url, /^https:\/\/harbor\.example\/oauth\/confirm\?id=/)
+  } finally {
+    await door.close()
+  }
+})
+
 test('agent.name and answer are required', async () => {
   await assert.rejects(() => createCapServer({ answer: async () => 'x' }), /agent\.name/)
   await assert.rejects(() => createCapServer({ agent: { name: 'Harbor' } }), /answer function/)
