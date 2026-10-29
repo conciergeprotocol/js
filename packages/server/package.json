@@ -1,6 +1,6 @@
 {
   "name": "@conciergeprotocol/server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Run a Concierge Agent Protocol front door. You write the answer.",
   "type": "module",
   "exports": {
