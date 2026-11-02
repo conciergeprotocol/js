@@ -4,6 +4,15 @@ export type LlmsSource = {
   name?: string
 }
 
+/** A public website, read from its sitemap or its home page links. */
+export type SiteSource = {
+  type: 'site'
+  url: string
+  name?: string
+  /** Pages to read, including the home page. Default 50. */
+  maxPages?: number
+}
+
 export type McpSource = {
   type: 'mcp'
   url: string
@@ -37,7 +46,7 @@ export function createAnswer(options: {
   /** A provider model object, or a `provider/model` string for the AI Gateway. */
   model: unknown
   instructions?: string
-  sources?: Array<LlmsSource | McpSource>
+  sources?: Array<LlmsSource | SiteSource | McpSource>
   /** AI SDK tools. Wrap a tool as `{ write: true, tool }` to keep it off a read-only caller. */
   tools?: Record<string, unknown | WriteTool>
   maxSteps?: number
@@ -46,4 +55,6 @@ export function createAnswer(options: {
   /** When true, write tools run for a caller whose grant scope is `write`. */
   executeWrites?: boolean
   fetch?: typeof fetch
+  /** Called with a failed model call. The caller only sees "The agent could not answer." Defaults to `console.error`. */
+  onError?: (error: unknown) => void
 }): Promise<CapAnswer>

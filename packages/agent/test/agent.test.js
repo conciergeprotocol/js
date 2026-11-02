@@ -121,6 +121,91 @@ test('an llms.txt source can only read pages it lists', async () => {
   }
 })
 
+function siteServer(routes) {
+  const server = createServer((req, res) => {
+    const origin = `http://127.0.0.1:${server.address().port}`
+    const route = routes[req.url]
+    if (!route) {
+      res.statusCode = 404
+      res.end('missing')
+      return
+    }
+    res.setHeader('content-type', route.type || 'text/html')
+    res.end(route.body.replaceAll('ORIGIN', origin))
+  })
+  return server
+}
+
+test('a site source reads the sitemap and cites each page', async () => {
+  const server = siteServer({
+    '/': { body: '<html><head><title>Harbor Goods</title></head><body><nav>Menu Returns Hours</nav><h1>Shoes for the coast</h1></body></html>' },
+    '/sitemap.xml': { type: 'application/xml', body: '<urlset><url><loc>ORIGIN/returns</loc></url><url><loc>ORIGIN/hours</loc></url><url><loc>https://elsewhere.example/x</loc></url><url><loc>ORIGIN/logo.png</loc></url></urlset>' },
+    '/returns': { body: '<html><head><title>Returns</title></head><body><p>Return unworn shoes within 30 days &amp; get a full refund.</p><script>secret()</script></body></html>' },
+    '/hours': { body: '<html><head><title>Hours</title></head><body><p>Open Saturday 11 to 9.</p></body></html>' },
+  })
+  const port = await listen(server)
+  const origin = `http://127.0.0.1:${port}`
+  try {
+    let tools
+    const answer = await createAnswer({
+      model: 'test',
+      sources: [{ type: 'site', url: `${origin}/` }],
+      generate: async (args) => {
+        tools = args.tools
+        return { text: 'ok', totalUsage: { totalTokens: 1 } }
+      },
+    })
+    await answer({ message: 'Returns?' })
+    assert.deepEqual(Object.keys(tools).sort(), ['site_read', 'site_search'])
+    assert.match(tools.site_search.description, /3 pages/)
+
+    const found = await tools.site_search.execute({ query: 'What is the return policy?' })
+    assert.match(found.split('\n\n')[0], /^Returns\n.*\/returns\n.*30 days & get a full refund/)
+    assert.doesNotMatch(found, /secret/)
+
+    const page = await tools.site_read.execute({ url: `${origin}/hours/` })
+    assert.match(page, /Open Saturday 11 to 9/)
+    assert.match(await tools.site_read.execute({ url: 'https://elsewhere.example/x' }), /not in the company sources/)
+    assert.match(await tools.site_search.execute({ query: 'parking' }), /No page matched/)
+
+    const home = await tools.site_read.execute({ url: `${origin}/` })
+    assert.doesNotMatch(home, /Menu/)
+  } finally {
+    await new Promise((resolve) => server.close(resolve))
+  }
+})
+
+test('a site without a sitemap is read from the home page links', async () => {
+  const server = siteServer({
+    '/': { body: '<html><body><a href="/faq">FAQ</a><a href="https://elsewhere.example/">Out</a><a href="#top">Top</a></body></html>' },
+    '/faq': { body: '<html><head><title>FAQ</title></head><body><p>We ship to Canada.</p></body></html>' },
+  })
+  const port = await listen(server)
+  const origin = `http://127.0.0.1:${port}`
+  try {
+    let tools
+    const answer = await createAnswer({
+      model: 'test',
+      sources: [{ type: 'site', name: 'harbor', url: origin }],
+      generate: async (args) => {
+        tools = args.tools
+        return { text: 'ok', totalUsage: { totalTokens: 1 } }
+      },
+    })
+    await answer({ message: 'Shipping?' })
+    assert.match(await tools.harbor_search.execute({ query: 'ship Canada' }), /FAQ\n.*\/faq/)
+  } finally {
+    await new Promise((resolve) => server.close(resolve))
+  }
+})
+
+test('a site that cannot be read stops createAnswer', async () => {
+  await assert.rejects(
+    () => createAnswer({ model: 'test', sources: [{ type: 'site', url: 'http://127.0.0.1:9/' }] }),
+    /Could not read/,
+  )
+})
+
 test('an MCP source is namespaced and closed', async () => {
   let closed = false
   const answer = await createAnswer({
@@ -146,14 +231,17 @@ test('an MCP source is namespaced and closed', async () => {
   assert.equal(closed, true)
 })
 
-test('a model failure becomes a failed message', async () => {
+test('a model failure becomes a failed message, and the owner sees the cause', async () => {
+  const logged = []
   const answer = await createAnswer({
     model: 'test',
     generate: async () => { throw new Error('provider down, key sk-secret') },
+    onError: (err) => logged.push(err.message),
   })
   const result = await answer({ message: 'Hi' })
   assert.equal(result.error.code, 'failed')
   assert.doesNotMatch(result.error.message, /sk-secret/)
+  assert.deepEqual(logged, ['provider down, key sk-secret'])
 })
 
 test('model is required', async () => {
