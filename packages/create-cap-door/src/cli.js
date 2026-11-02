@@ -6,7 +6,7 @@ import { resolve } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { parseArgs } from 'node:util'
 import { checkDoor } from '@conciergeprotocol/server'
-import { detectSource, normalizeUrl, projectFiles, projectSlug, siteName, writeProject } from './scaffold.js'
+import { canonicalOrigin, detectSources, normalizeUrl, projectFiles, projectSlug, siteName, writeProject } from './scaffold.js'
 
 const USAGE = `Usage: create-cap-door <website> [--dir <folder>] [--name <name>] [--yes] [--no-install]
 
@@ -37,18 +37,19 @@ try {
 }
 
 async function main() {
-  const origin = normalizeUrl(positionals[0])
+  const origin = await canonicalOrigin(normalizeUrl(positionals[0]))
   console.log(`Reading ${origin}`)
-  const [source, foundName] = await Promise.all([detectSource(origin), siteName(origin)])
+  const [sources, foundName] = await Promise.all([detectSources(origin), siteName(origin)])
   const name = values.name || foundName
-  console.log(source.type === 'llms' ? `Using ${source.url}` : 'No llms.txt with links, so the door reads the site pages.')
+  const llms = sources.find((source) => source.type === 'llms')
+  console.log(llms ? `The door reads the site pages and ${llms.url}.` : 'The door reads the site pages.')
 
   const dir = resolve(values.dir || `${projectSlug(origin)}-cap-door`)
   const { dependencies } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
   const files = projectFiles({
     name,
     origin,
-    source,
+    sources,
     dependencies: {
       '@conciergeprotocol/agent': dependencies['@conciergeprotocol/agent'],
       '@conciergeprotocol/server': dependencies['@conciergeprotocol/server'],

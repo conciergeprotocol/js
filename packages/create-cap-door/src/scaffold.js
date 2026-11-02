@@ -10,14 +10,27 @@ export function normalizeUrl(input) {
   return url.origin
 }
 
-/** An `llms.txt` with links is the owner's own map of the site. Otherwise read the site. */
-export async function detectSource(origin, fetchImpl = fetch) {
-  const res = await fetchImpl(`${origin}/llms.txt`, { signal: AbortSignal.timeout(10_000) }).catch(() => null)
+/** The origin the home page lands on, such as `https://www.` after a redirect. */
+export async function canonicalOrigin(origin, fetchImpl = fetch) {
+  const res = await fetchImpl(origin, { signal: AbortSignal.timeout(10_000) }).catch(() => null)
+  if (!res?.ok || !res.url) return origin
+  return new URL(res.url).origin
+}
+
+/**
+ * The site pages are always read. An `llms.txt` with links is added as the
+ * owner's own map. The agent reads `llms.txt` without following redirects,
+ * so only a direct URL is kept.
+ */
+export async function detectSources(origin, fetchImpl = fetch) {
+  const site = { type: 'site', url: origin }
+  const url = `${origin}/llms.txt`
+  const res = await fetchImpl(url, { redirect: 'manual', signal: AbortSignal.timeout(10_000) }).catch(() => null)
   if (res?.ok && !/html/i.test(res.headers?.get?.('content-type') || '')) {
     const text = await res.text()
-    if (/\]\(https?:\/\//.test(text)) return { type: 'llms', url: `${origin}/llms.txt` }
+    if (/\]\(https?:\/\//.test(text)) return [site, { type: 'llms', url }]
   }
-  return { type: 'site', url: origin }
+  return [site]
 }
 
 /** The name before the separator in the home page title, or the domain. */
@@ -36,7 +49,7 @@ export function projectSlug(origin) {
   return new URL(origin).hostname.replace(/^www\./, '').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase()
 }
 
-export function projectFiles({ name, origin, source, dependencies }) {
+export function projectFiles({ name, origin, sources, dependencies }) {
   const instructions = `You are the concierge for ${name}, the website at ${origin}. Answer from the website. End each answer with the link to the page you used. When the site does not say, say so and link to ${origin}.`
   return {
     'package.json': `${JSON.stringify({
@@ -59,7 +72,9 @@ if (existsSync('.env')) process.loadEnvFile('.env')
 const answer = await createAnswer({
   model: process.env.CAP_MODEL || ${JSON.stringify(DEFAULT_MODEL)},
   instructions: ${JSON.stringify(instructions)},
-  sources: [${JSON.stringify(source)}],
+  sources: [
+${sources.map((source) => `    ${JSON.stringify(source)},`).join('\n')}
+  ],
   dailyTokens: Number(process.env.CAP_DAILY_TOKENS || 500_000),
 })
 
