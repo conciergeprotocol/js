@@ -231,14 +231,17 @@ test('an MCP source is namespaced and closed', async () => {
   assert.equal(closed, true)
 })
 
-test('a model failure becomes a failed message', async () => {
+test('a model failure becomes a failed message, and the owner sees the cause', async () => {
+  const logged = []
   const answer = await createAnswer({
     model: 'test',
     generate: async () => { throw new Error('provider down, key sk-secret') },
+    onError: (err) => logged.push(err.message),
   })
   const result = await answer({ message: 'Hi' })
   assert.equal(result.error.code, 'failed')
   assert.doesNotMatch(result.error.message, /sk-secret/)
+  assert.deepEqual(logged, ['provider down, key sk-secret'])
 })
 
 test('model is required', async () => {

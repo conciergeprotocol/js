@@ -9,7 +9,7 @@ npx create-cap-door https://harborgoods.example
 The command:
 
 1. Follows the home page redirect, such as to `www.`, and uses that address. The door reads the home page, the pages it links to, and `sitemap.xml`. When `llms.txt` links to pages, the door reads it too.
-2. Asks for an [AI Gateway](https://vercel.com/docs/ai-gateway) key, or reads `AI_GATEWAY_API_KEY`. The key is written only to `.env`.
+2. Asks for an [AI Gateway](https://vercel.com/docs/ai-gateway) key, or reads `AI_GATEWAY_API_KEY`. The key is written only to `.env`. One short call checks the key. When a free tier key cannot use the default model (`anthropic/claude-sonnet-4.5`), the door uses `openai/gpt-5-mini`, then `google/gemini-2.5-flash`, and sets `CAP_MODEL`.
 3. Writes a folder with `server.js`, `.env.example`, a `Dockerfile`, and a README. The server runs on [`@conciergeprotocol/agent`](https://www.npmjs.com/package/@conciergeprotocol/agent) and [`@conciergeprotocol/server`](https://www.npmjs.com/package/@conciergeprotocol/server).
 4. Installs, starts the door, asks it one question, and runs the same checks as `cap-check`.
 5. Prints how to publish `agent.txt` and the home page `<link rel="agent">` tag.

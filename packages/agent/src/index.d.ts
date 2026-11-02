@@ -55,4 +55,6 @@ export function createAnswer(options: {
   /** When true, write tools run for a caller whose grant scope is `write`. */
   executeWrites?: boolean
   fetch?: typeof fetch
+  /** Called with a failed model call. The caller only sees "The agent could not answer." Defaults to `console.error`. */
+  onError?: (error: unknown) => void
 }): Promise<CapAnswer>

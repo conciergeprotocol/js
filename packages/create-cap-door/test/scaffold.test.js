@@ -4,7 +4,7 @@ import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { canonicalOrigin, detectSources, normalizeUrl, projectFiles, siteName, writeProject } from '../src/scaffold.js'
+import { DEFAULT_MODEL, FALLBACK_MODELS, canonicalOrigin, detectSources, normalizeUrl, pickModel, projectFiles, siteName, writeProject } from '../src/scaffold.js'
 
 async function serve(routes) {
   const server = createServer((req, res) => {
@@ -97,6 +97,27 @@ test('the project answers from the source and keeps the key out of the files', (
   assert.equal(readFileSync(join(dir, '.env'), 'utf8'), 'AI_GATEWAY_API_KEY=key-123\n')
   assert.equal(statSync(join(dir, '.env')).mode & 0o777, 0o600)
   for (const file of Object.keys(files)) assert.doesNotMatch(readFileSync(join(dir, file), 'utf8'), /key-123/)
+})
+
+test('a refused default model falls back, and a bad key stops', async () => {
+  const freeTier = Object.assign(new Error('Free tier users do not have access to this model.'), { statusCode: 403 })
+  const tried = []
+  const picked = await pickModel(async ({ model }) => {
+    tried.push(model)
+    if (model === DEFAULT_MODEL) throw freeTier
+  })
+  assert.deepEqual(picked, { model: FALLBACK_MODELS[0] })
+  assert.deepEqual(tried, [DEFAULT_MODEL, FALLBACK_MODELS[0]])
+
+  assert.deepEqual(await pickModel(async () => {}), { model: DEFAULT_MODEL })
+
+  let calls = 0
+  const badKey = await pickModel(async () => {
+    calls += 1
+    throw Object.assign(new Error('Invalid API key.'), { statusCode: 401 })
+  })
+  assert.deepEqual(badKey, { model: null, error: 'Invalid API key.' })
+  assert.equal(calls, 1)
 })
 
 test('a folder that has files is not overwritten', () => {

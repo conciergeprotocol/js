@@ -2,6 +2,28 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 export const DEFAULT_MODEL = 'anthropic/claude-sonnet-4.5'
+/** Models an AI Gateway free tier can call, tried in order when the default is refused. */
+export const FALLBACK_MODELS = ['openai/gpt-5-mini', 'google/gemini-2.5-flash']
+
+const refused = (err) => err?.statusCode === 403 || /free tier|access to this model/i.test(err?.message || '')
+
+/**
+ * Make one short call per model until one answers. Only a refused model moves
+ * on to the next. A bad key or an outage stops with its message.
+ */
+export async function pickModel(generate) {
+  let failure
+  for (const model of [DEFAULT_MODEL, ...FALLBACK_MODELS]) {
+    try {
+      await generate({ model, prompt: 'Reply with ok.' })
+      return { model }
+    } catch (err) {
+      failure = err
+      if (!refused(err)) break
+    }
+  }
+  return { model: null, error: failure?.message || 'The model call failed.' }
+}
 
 export function normalizeUrl(input) {
   const raw = String(input || '').trim()

@@ -17,6 +17,7 @@ export async function createAnswer(options = {}) {
   const fetchImpl = options.fetch || fetch
   const connect = options.connect || connectMcp
   const maxSteps = options.maxSteps ?? 6
+  const onError = options.onError || ((err) => console.error(`CAP answer failed: ${err?.message || err}`))
   const dailyTokens = options.dailyTokens || 0
 
   const clients = []
@@ -83,7 +84,8 @@ export async function createAnswer(options = {}) {
         stopWhen: isStepCount(maxSteps),
         runtimeContext: { account: account || null, scope: scope || null },
       })
-    } catch {
+    } catch (err) {
+      onError(err)
       return { error: { code: 'failed', message: 'The agent could not answer.' } }
     }
 

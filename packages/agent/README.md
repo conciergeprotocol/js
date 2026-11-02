@@ -68,7 +68,7 @@ Write tools are included when `executeWrites` is true and the CAP grant's `scope
 
 ## What the reply contains
 
-The function returns `{ reply }` with the model's text, or `{ error: { code: 'failed', message } }` when the model fails or the token cap is reached. Tool names, tool errors, and these instructions are not added to the reply. The prompt tells the model to leave them out.
+The function returns `{ reply }` with the model's text, or `{ error: { code: 'failed', message } }` when the model fails or the token cap is reached. A model failure is passed to `onError`, which defaults to `console.error`, so the owner sees the cause in the server log. Tool names, tool errors, and these instructions are not added to the reply. The prompt tells the model to leave them out.
 
 The visitor message is treated as untrusted. It does not replace the instructions.
 

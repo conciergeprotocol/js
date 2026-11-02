@@ -6,7 +6,8 @@ import { resolve } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { parseArgs } from 'node:util'
 import { checkDoor } from '@conciergeprotocol/server'
-import { canonicalOrigin, detectSources, normalizeUrl, projectFiles, projectSlug, siteName, writeProject } from './scaffold.js'
+import { generateText } from 'ai'
+import { DEFAULT_MODEL, canonicalOrigin, detectSources, normalizeUrl, pickModel, projectFiles, projectSlug, siteName, writeProject } from './scaffold.js'
 
 const USAGE = `Usage: create-cap-door <website> [--dir <folder>] [--name <name>] [--yes] [--no-install]
 
@@ -63,10 +64,23 @@ async function main() {
     rl.close()
   }
 
-  writeProject(dir, files, { AI_GATEWAY_API_KEY: key })
+  let model = null
+  if (key) {
+    process.env.AI_GATEWAY_API_KEY = key
+    const picked = await pickModel(generateText)
+    model = picked.model
+    if (!model) console.error(`The model call failed: ${picked.error}`)
+    else if (model !== DEFAULT_MODEL) console.log(`${DEFAULT_MODEL} is not available on this key, so the door uses ${model}.`)
+  }
+
+  writeProject(dir, files, {
+    AI_GATEWAY_API_KEY: key,
+    CAP_MODEL: model && model !== DEFAULT_MODEL ? model : '',
+  })
   console.log(`Wrote ${dir}`)
 
-  if (!key || values['no-install']) {
+  if (!model || values['no-install']) {
+    if (key && !model) process.exitCode = 1
     printNext({ dir, origin, hasKey: Boolean(key), installed: false })
     return
   }
@@ -79,7 +93,7 @@ async function main() {
   console.log(`Starting the door and asking it one question`)
   const child = spawn(process.execPath, ['server.js'], {
     cwd: dir,
-    env: { ...process.env, AI_GATEWAY_API_KEY: key, PORT: String(port), HOST: '127.0.0.1' },
+    env: { ...process.env, AI_GATEWAY_API_KEY: key, CAP_MODEL: model, PORT: String(port), HOST: '127.0.0.1' },
     stdio: ['ignore', 'ignore', 'inherit'],
   })
   try {

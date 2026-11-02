@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@conciergeprotocol/agent": "^0.1.0",
-    "@conciergeprotocol/server": "^0.3.0"
+    "@conciergeprotocol/server": "^0.3.0",
+    "ai": "^7.0.154"
   }
 }
