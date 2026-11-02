@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "conciergeprotocol-js",
@@ -10,7 +9,7 @@
     },
     "packages/agent": {
       "name": "@conciergeprotocol/agent",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "@ai-sdk/mcp": "^2.0.85",
         "ai": "^7.0.154",
@@ -19,11 +18,22 @@
     },
     "packages/client": {
       "name": "@conciergeprotocol/client",
-      "version": "0.1.5",
+      "version": "0.1.6",
+    },
+    "packages/create-cap-door": {
+      "name": "create-cap-door",
+      "version": "0.0.0",
+      "bin": {
+        "create-cap-door": "./src/cli.js",
+      },
+      "dependencies": {
+        "@conciergeprotocol/agent": "^0.1.0",
+        "@conciergeprotocol/server": "^0.3.0",
+      },
     },
     "packages/mcp": {
       "name": "@conciergeprotocol/mcp",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "bin": {
         "cap-mcp": "./src/index.js",
       },
@@ -35,7 +45,7 @@
     },
     "packages/server": {
       "name": "@conciergeprotocol/server",
-      "version": "0.0.0",
+      "version": "0.3.0",
       "bin": {
         "cap-server": "./src/cli.js",
         "cap-check": "./src/check.js",
@@ -161,6 +171,8 @@
     "cookie-signature": ["cookie-signature@1.2.2", "", {}, "sha512-D76uU73ulSXrD1UXF4KE2TMxVVwhsnCgfAyTg9k8P6KGZjlXKrOLe4dJQKI3Bxi5wjesZoFXJWElNWBjPZMbhg=="],
 
     "cors": ["cors@2.8.6", "", { "dependencies": { "object-assign": "^4", "vary": "^1" } }, "sha512-tJtZBBHA6vjIAaF6EnIaq6laBBP9aq/Y3ouVJjEfoHbRBcHBAHYcMh/w8LDrk2PvIMMq8gmopa5D4V8RmbrxGw=="],
+
+    "create-cap-door": ["create-cap-door@workspace:packages/create-cap-door"],
 
     "cross-spawn": ["cross-spawn@7.0.6", "", { "dependencies": { "path-key": "^3.1.0", "shebang-command": "^2.0.0", "which": "^2.0.1" } }, "sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA=="],
 

@@ -22,7 +22,7 @@ const answer = await createAnswer({
   model: 'anthropic/claude-sonnet-4.5',
   instructions: 'You answer for Harbor Goods. Link to the page.',
   sources: [
-    { type: 'llms', url: 'https://harborgoods.example/llms.txt' },
+    { type: 'site', url: 'https://harborgoods.example' },
     {
       type: 'mcp',
       name: 'docs',
@@ -46,8 +46,9 @@ await cap.listen(8088)
 
 A string model is called through the [Vercel AI Gateway](https://vercel.com/docs/ai-gateway). Set `AI_GATEWAY_API_KEY`, or pass a model object from a provider package to call that provider directly.
 
-`sources` has two kinds:
+`sources` has three kinds:
 
+- `site` reads a public website at startup: the home page, the pages it links to, then the pages in `sitemap.xml`, up to `maxPages` (default 50). The model searches those pages and reads one in full, and each result carries the page URL. Pages on other origins are skipped. Use it when the site has no `llms.txt`.
 - `llms` fetches an `llms.txt` file and lets the model read only the pages that file links to.
 - `mcp` connects to an MCP server over HTTP. Its tools are prefixed with `name`, so a server tool `search` is `docs_search`. The header value stays on this side of the door.
 

@@ -1,0 +1,39 @@
+{
+  "name": "create-cap-door",
+  "version": "0.0.0",
+  "description": "Give a website a Concierge Agent Protocol door that answers AI agents from its pages.",
+  "type": "module",
+  "bin": {
+    "create-cap-door": "./src/cli.js"
+  },
+  "exports": {
+    ".": "./src/scaffold.js"
+  },
+  "files": [
+    "src"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://conciergeprotocol.org",
+  "keywords": [
+    "concierge",
+    "cap",
+    "agents",
+    "agent.txt",
+    "create"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciergeprotocol/js.git",
+    "directory": "packages/create-cap-door"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@conciergeprotocol/agent": "^0.1.0",
+    "@conciergeprotocol/server": "^0.3.0"
+  }
+}
