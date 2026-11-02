@@ -1,6 +1,6 @@
 {
   "name": "create-cap-door",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Give a website a Concierge Agent Protocol door that answers AI agents from its pages.",
   "type": "module",
   "bin": {
@@ -33,7 +33,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@conciergeprotocol/agent": "^0.1.0",
+    "@conciergeprotocol/agent": "^0.2.0",
     "@conciergeprotocol/server": "^0.3.0",
     "ai": "^7.0.154"
   }
