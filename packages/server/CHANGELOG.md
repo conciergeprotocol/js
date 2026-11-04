@@ -1,5 +1,11 @@
 # @conciergeprotocol/server
 
+## 0.4.0
+
+### Minor Changes
+
+- bb63b7f: Add a `store` option and `createKvStore`, so a door can keep its state in any key-value service instead of SQLite or Postgres. This lets a door run on serverless hosts that have no disk.
+
 ## 0.3.0
 
 ### Minor Changes
