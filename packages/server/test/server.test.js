@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { checkDoor, createCapHandler, createCapServer } from '../src/index.js'
+import { checkDoor, createCapHandler, createCapServer, createKvStore, memoryKv } from '../src/index.js'
+
+// server-kv.test.js runs this file again with the key-value store.
+const memoryStore = () => (process.env.CAP_TEST_STORE === 'kv' ? { store: createKvStore(memoryKv()) } : { sqlitePath: ':memory:' })
 
 const headers = (extra = {}) => ({
   'content-type': 'application/json',
@@ -20,7 +23,7 @@ async function post(root, message, extra = {}, body = {}) {
 }
 
 async function start(options) {
-  const cap = await createCapServer({ sqlitePath: ':memory:', retryAfter: 0, ...options })
+  const cap = await createCapServer({ ...memoryStore(), retryAfter: 0, ...options })
   const address = await cap.listen(0, '127.0.0.1')
   return { cap, root: `http://127.0.0.1:${address.port}` }
 }
@@ -134,7 +137,7 @@ test('login_required is the company answer, not a transport error', async () => 
 
 test('fetch handler serves the same door', async () => {
   const door = await createCapHandler({
-    sqlitePath: ':memory:',
+    ...memoryStore(),
     agent: { name: 'Harbor Goods' },
     answer: async ({ message }) => `Echo ${message}`,
   })
@@ -294,7 +297,7 @@ test('accountFor and requestApproval serve the owner\'s own account routes', asy
   const door = await createCapHandler({
     agent: { name: 'Harbor Goods' },
     answer: async () => 'ok',
-    sqlitePath: ':memory:',
+    ...memoryStore(),
     write: true,
     act: async () => ({ message: 'Cancelled.' }),
     login: async () => null,

@@ -58,6 +58,8 @@ export type CapServerOptions = {
   databaseUrl?: string
   /** SQLite file, or `:memory:`. Ignored when databaseUrl is a Postgres URL. */
   sqlitePath?: string
+  /** Replaces SQLite and Postgres. Build one with `createKvStore`. */
+  store?: CapStore
   accessTokenSeconds?: number
   writeAccessTokenSeconds?: number
   deviceInterval?: number
@@ -91,6 +93,23 @@ export type CapServer = AccountHelpers & {
   fetch(request: Request): Promise<Response>
   handle(req: IncomingMessage, res: ServerResponse): Promise<void>
 }
+
+/** Any key-value service with JSON values. `close` is optional. */
+export type KeyValue = {
+  get(key: string): Promise<unknown | null>
+  set(key: string, value: unknown): Promise<void>
+  delete(key: string): Promise<void>
+  close?(): Promise<void>
+}
+
+/** Where the door keeps messages, logins, grants, and approvals. */
+export type CapStore = { close(): Promise<void> } & Record<string, (...args: any[]) => Promise<unknown>>
+
+/** A door store over a key-value service, for hosts without a disk. */
+export function createKvStore(kv: KeyValue): CapStore
+
+/** An in-memory key-value service, for tests and local runs. */
+export function memoryKv(): KeyValue
 
 export function createCapServer(options: CapServerOptions): Promise<CapServer>
 
