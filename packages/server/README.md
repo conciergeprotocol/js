@@ -47,6 +47,22 @@ The server waits `waitSeconds` (default 20). A longer answer finishes in the bac
 
 Without `sqlitePath` or `DATABASE_URL`, messages go to `data/cap.sqlite` in the working directory. Pass `sqlitePath: ':memory:'` for a process that keeps nothing.
 
+On a host without a disk, keep state in any key-value service. Pass `store: createKvStore(kv)`, where `kv` has async `get(key)`, `set(key, value)`, and `delete(key)` with JSON values. Codes and approvals are read, then deleted, in two steps, so this store suits a demo or a low-traffic door better than one where requests race.
+
+```js
+import { createCapHandler, createKvStore } from '@conciergeprotocol/server'
+
+const door = await createCapHandler({
+  agent: { name: 'Harbor Goods' },
+  answer,
+  store: createKvStore({
+    get: (key) => redis.get(key).then((text) => (text ? JSON.parse(text) : null)),
+    set: (key, value) => redis.set(key, JSON.stringify(value)),
+    delete: (key) => redis.del(key),
+  }),
+})
+```
+
 ## The file on the company domain
 
 This process can run on any host. The company domain still serves `agent.txt`. Point `CAP` at this server, or rewrite `/cap/v1` to it. Set `publicUrl` when the public origin differs from the request host.
@@ -69,7 +85,7 @@ npx cap-check https://cap.harborgoods.example
 
 ## Next.js
 
-`createCapHandler` returns a Fetch handler. Use a durable store (`sqlitePath` on a disk, or `databaseUrl`). A memory store loses an in-flight answer when the function instance stops.
+`createCapHandler` returns a Fetch handler. Use a durable store (`sqlitePath` on a disk, `databaseUrl`, or `store`). A memory store loses an in-flight answer when the function instance stops.
 
 ```js
 import { createCapHandler } from '@conciergeprotocol/server'

@@ -5,6 +5,7 @@ import { createStore } from './store.mjs'
 import { handleWeb } from './web.mjs'
 
 export { checkDoor } from './check.mjs'
+export { createKvStore, memoryKv } from './store-kv.mjs'
 
 /**
  * Run a CAP front door. `answer` is the only part that belongs to the company.
@@ -15,14 +16,7 @@ export async function createCapServer(options = {}) {
   const agent = normalizeAgent(options.agent)
   if (typeof options.answer !== 'function') throw new Error('createCapServer needs an answer function.')
 
-  const sqlitePath = options.sqlitePath ?? process.env.SQLITE_PATH ?? join(process.cwd(), 'data', 'cap.sqlite')
-  const databaseUrl = options.databaseUrl != null
-    ? options.databaseUrl
-    : (options.sqlitePath ? '' : (process.env.DATABASE_URL || ''))
-  const store = await createStore({
-    databaseUrl,
-    sqlitePath: databaseUrl ? undefined : sqlitePath,
-  })
+  const store = options.store || await defaultStore(options)
 
   for (const grant of options.grants || []) {
     if (grant.token && grant.account && grant.client) {
@@ -98,6 +92,17 @@ export async function createCapHandler(options) {
     requestApproval: cap.requestApproval,
     close: () => cap.close(),
   }
+}
+
+function defaultStore(options) {
+  const sqlitePath = options.sqlitePath ?? process.env.SQLITE_PATH ?? join(process.cwd(), 'data', 'cap.sqlite')
+  const databaseUrl = options.databaseUrl != null
+    ? options.databaseUrl
+    : (options.sqlitePath ? '' : (process.env.DATABASE_URL || ''))
+  return createStore({
+    databaseUrl,
+    sqlitePath: databaseUrl ? undefined : sqlitePath,
+  })
 }
 
 /** A Fetch API Request reads like a Node request for header checks. */
