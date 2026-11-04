@@ -1,5 +1,12 @@
 # create-cap-door
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [bb63b7f]
+  - @conciergeprotocol/server@0.4.0
+
 ## 0.1.0
 
 ### Minor Changes
