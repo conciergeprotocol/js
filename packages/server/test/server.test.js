@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { checkDoor, createCapHandler, createCapServer, createKvStore, memoryKv } from '../src/index.js'
+import { ASK_LINE } from '../src/node-server.mjs'
 
 // server-kv.test.js runs this file again with the key-value store.
 const memoryStore = () => (process.env.CAP_TEST_STORE === 'kv' ? { store: createKvStore(memoryKv()) } : { sqlitePath: ':memory:' })
@@ -45,6 +46,35 @@ test('answer function is the door', async () => {
     assert.match(text, /Name: Harbor Goods/)
     assert.match(text, new RegExp(`CAP: ${root}/cap/v1`))
     assert.doesNotMatch(text, /OAuth:/)
+    assert.ok(text.includes(`\n${ASK_LINE}\n`))
+
+    for (const path of ['/cap/v1', '/cap/v1/messages']) {
+      const help = await fetch(`${root}${path}`)
+      const helpBody = await help.text()
+      assert.equal(help.status, 200, path)
+      assert.match(help.headers.get('content-type'), /text\/plain/)
+      assert.match(helpBody, /^Harbor Goods answers questions/)
+      assert.ok(helpBody.includes(`POST ${root}/cap/v1/messages\nCAP-Version: 1.0\nCAP-From: agent:{your-id}`))
+      assert.ok(helpBody.includes(`${root}/cap/v1/messages?from=agent:{your-id}&message=`))
+    }
+
+    const getUrl = `${root}/cap/v1/messages?from=agent:getter&message=${encodeURIComponent('Open by GET?')}`
+    const byGet = await fetch(getUrl)
+    const byGetBody = await byGet.json()
+    assert.equal(byGet.status, 200)
+    assert.equal(byGetBody.status, 'done')
+    assert.match(byGetBody.reply, /You said: Open by GET\?/)
+    const getAgain = await (await fetch(getUrl)).json()
+    assert.equal(getAgain.id, byGetBody.id, 'a repeated GET is asked once')
+    const readBack = await fetch(`${root}/cap/v1/messages/${byGetBody.id}?from=agent:getter`)
+    assert.equal(readBack.status, 200)
+    const otherRead = await fetch(`${root}/cap/v1/messages/${byGetBody.id}?from=agent:other`)
+    assert.equal(otherRead.status, 404)
+    const noFrom = await fetch(`${root}/cap/v1/messages?message=hi`)
+    assert.equal(noFrom.status, 400)
+    const withToken = await fetch(`${root}/cap/v1/messages?from=agent:getter&message=hi`, { headers: { authorization: 'Bearer x' } })
+    assert.equal(withToken.status, 400)
+    seen.length = 0
 
     const first = await post(root, 'When are you open?', {}, { context: { city: 'Venice' } })
     assert.equal(first.status, 200)
