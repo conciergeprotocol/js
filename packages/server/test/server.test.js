@@ -45,6 +45,17 @@ test('answer function is the door', async () => {
     assert.match(text, /Name: Harbor Goods/)
     assert.match(text, new RegExp(`CAP: ${root}/cap/v1`))
     assert.doesNotMatch(text, /OAuth:/)
+    assert.match(text, /\nAsk: This agent answers for the company\./)
+    assert.ok(text.includes(`POST ${root}/cap/v1/messages with`))
+
+    for (const path of ['/cap/v1', '/cap/v1/messages']) {
+      const help = await fetch(`${root}${path}`)
+      const helpBody = await help.text()
+      assert.equal(help.status, 200, path)
+      assert.match(help.headers.get('content-type'), /text\/plain/)
+      assert.match(helpBody, /^Harbor Goods answers questions/)
+      assert.ok(helpBody.includes(`POST ${root}/cap/v1/messages\nCAP-Version: 1.0\nCAP-From: agent:{your-id}`))
+    }
 
     const first = await post(root, 'When are you open?', {}, { context: { city: 'Venice' } })
     assert.equal(first.status, 200)
