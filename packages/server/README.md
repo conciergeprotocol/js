@@ -2,7 +2,7 @@
 
 Run a [Concierge Agent Protocol](https://conciergeprotocol.org) front door. You write one function, `answer`. The package serves `agent.txt`, keeps the thread, hides one caller's reply from another, and enforces the daily message cap.
 
-The protocol is at [conciergeprotocol.org](https://conciergeprotocol.org). Publishing a door is described in [Publish a door](https://conciergeprotocol.org/publish).
+The protocol is at [conciergeprotocol.org](https://conciergeprotocol.org). Publishing a door is described in [Publish a door](https://conciergeprotocol.org/publish). To serve a door without running this server, use one of the [hosted services](https://conciergeprotocol.org/publish#hosted-services).
 
 ## Install
 
