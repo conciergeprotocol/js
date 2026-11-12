@@ -210,6 +210,9 @@ test('login adds the OAuth line', async () => {
   try {
     const text = await (await fetch(`${root}/agent.txt`)).text()
     assert.match(text, new RegExp(`OAuth: ${root}/oauth`))
+    const meta = await (await fetch(`${root}/.well-known/oauth-authorization-server/oauth`)).json()
+    assert.equal(meta.issuer, `${root}/oauth`)
+    assert.deepEqual(meta.protected_resources, [text.match(/^CAP: (.+)$/m)[1]])
   } finally {
     await cap.close()
   }
