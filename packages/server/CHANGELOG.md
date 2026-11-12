@@ -1,5 +1,16 @@
 # @conciergeprotocol/server
 
+## 0.6.0
+
+### Minor Changes
+
+- 3da0590: A done reply may include an optional `items` array and an `as_of` time. `answer` can return them, malformed items are dropped, and the help text says the door supports the extension. The client sends `accept: ['items']` when asked and returns the items on the message. The MCP server asks for items and passes them through.
+
+### Patch Changes
+
+- 5194307: `cap-check` reads the OAuth metadata when `agent.txt` has an `OAuth` line, and fails unless `issuer` matches that line and `protected_resources` lists the CAP URL.
+- e69def6: The OAuth metadata lists the door's CAP URL in `protected_resources`. Visiting agents now log in only when it matches the `CAP` line in `agent.txt`.
+
 ## 0.5.0
 
 ### Minor Changes
