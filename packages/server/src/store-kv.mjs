@@ -146,6 +146,8 @@ export function createKvStore(kv) {
         created_at: msg.created_at,
         finished_at: msg.finished_at || null,
         confirmation_id: null,
+        items: null,
+        as_of: null,
       }
       if (msg.idempotency_key) {
         const pointerKey = idempotencyKey({
@@ -164,7 +166,7 @@ export function createKvStore(kv) {
       await kv.set(day, { n: Number(count?.n || 0) + 1 })
       return { message, created: true }
     },
-    async finish(id, { status, reply, error, finishedAt, confirmationId = null }) {
+    async finish(id, { status, reply, error, finishedAt, confirmationId = null, items = null, asOf = null }) {
       const row = await get(`msg:${id}`)
       if (!row) return
       await kv.set(`msg:${id}`, {
@@ -174,6 +176,8 @@ export function createKvStore(kv) {
         error: error || null,
         finished_at: finishedAt,
         confirmation_id: confirmationId,
+        items: items || null,
+        as_of: asOf || null,
       })
     },
     async byId(id) {

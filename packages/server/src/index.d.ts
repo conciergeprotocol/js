@@ -21,15 +21,19 @@ export type AnswerInput = {
   account: string | null
   scope: 'read' | 'write' | null
   caller: string
+  /** Values the caller asked for, such as `items`. Empty when it asked for none. */
+  accept: string[]
 }
 
 export type AnswerError = { error: { code: string; message: string } }
 
+export type StructuredResult = { items?: unknown[]; as_of?: string }
+
 export type AnswerResult =
   | string
-  | { reply: string }
+  | ({ reply: string } & StructuredResult)
   | AnswerError
-  | { confirm: { summary: string; authorization_details?: unknown[] }; reply?: string }
+  | ({ confirm: { summary: string; authorization_details?: unknown[] }; reply?: string } & StructuredResult)
 
 export type Answer = (input: AnswerInput) => AnswerResult | Promise<AnswerResult>
 

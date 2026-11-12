@@ -14,7 +14,7 @@ Node.js 22 or newer. Messages are stored in SQLite. Set `DATABASE_URL` to a Post
 
 ## Answer
 
-`answer` receives the question and returns the reply. A string, or `{ reply }`. Keys, tools, and records stay inside this function. The caller only sees the reply.
+`answer` receives the question and returns the reply. A string, or `{ reply }`. When `accept` includes `items`, it may also return `{ reply, items, as_of }`. Keys, tools, and records stay inside this function. The caller sees the reply, and the items when you return them.
 
 ```js
 import { createCapServer } from '@conciergeprotocol/server'
@@ -160,7 +160,7 @@ export async function GET(request) {
 }
 ```
 
-`static` returns fixed text. `echo` returns the message. `http` POSTs `{ message, context, history, account, scope }` to a URL and expects `{ "reply": "..." }`. Set `handler.secret_env` to send that environment variable as `X-Cap-Secret`.
+`static` returns fixed text. `echo` returns the message. `http` POSTs `{ message, context, history, account, scope, accept }` to a URL and expects `{ "reply": "..." }`. The hook may also return `items` and `as_of`. Set `handler.secret_env` to send that environment variable as `X-Cap-Secret`.
 
 ```sh
 npx cap-server

@@ -28,6 +28,10 @@ export type Message = {
   status: 'working' | 'done' | 'failed'
   reply?: string
   error?: { code: string; message: string }
+  /** Typed records the reply mentions. Present when the door sent them. */
+  items?: unknown[]
+  /** When the door read the data behind `items`. */
+  as_of?: string
   confirmation?: unknown
   created_at?: string
   finished_at?: string | null
@@ -54,6 +58,8 @@ export type AskOptions = {
   previousMessageId?: string
   idempotencyKey?: string
   signal?: AbortSignal
+  /** Ask the door for extensions it supports, such as `['items']`. */
+  accept?: string[]
 }
 
 export type Thread = {

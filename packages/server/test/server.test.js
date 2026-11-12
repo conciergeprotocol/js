@@ -54,6 +54,7 @@ test('answer function is the door', async () => {
       assert.equal(help.status, 200, path)
       assert.match(help.headers.get('content-type'), /text\/plain/)
       assert.match(helpBody, /^Harbor Goods answers questions/)
+      assert.match(helpBody, /Items: add "accept": \["items"\]/)
       assert.ok(helpBody.includes(`POST ${root}/cap/v1/messages\nCAP-Version: 1.0\nCAP-From: agent:{your-id}`))
       assert.ok(helpBody.includes(`${root}/cap/v1/messages?from=agent:{your-id}&message=`))
     }
@@ -374,6 +375,75 @@ test('accountFor and requestApproval serve the owner\'s own account routes', asy
     assert.match(held.confirmation.url, /^https:\/\/harbor\.example\/oauth\/confirm\?id=/)
   } finally {
     await door.close()
+  }
+})
+
+test('items ride next to the reply and a bad item is dropped', async () => {
+  const { cap, root } = await start({
+    agent: { name: 'Harbor Goods' },
+    answer: async (input) => {
+      assert.deepEqual(input.accept, ['items'])
+      return {
+        reply: 'The Cloudrunner 2 [1] is $140.',
+        as_of: '2026-11-12T07:26:00.000Z',
+        items: [
+          {
+            type: 'product',
+            ref: 1,
+            id: 'sku_88231',
+            title: 'Cloudrunner 2',
+            url: 'https://shop.example/p/cloudrunner-2',
+            price: { amount: 140, currency: 'usd' },
+            list_price: { amount: '100.00', currency: 'USD' },
+            availability: 'in_stock',
+            valid_until: '2026-11-12T19:26:00Z',
+          },
+          { type: 'product', title: 'Missing a url' },
+          { title: 'No type', url: 'https://shop.example/x' },
+        ],
+      }
+    },
+  })
+  try {
+    const res = await post(root, 'Black running shoes', {}, { accept: ['items'] })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.status, 'done')
+    assert.equal(res.body.items.length, 1)
+    assert.equal(res.body.items[0].price.amount, '140.00')
+    assert.equal(res.body.items[0].price.currency, 'USD')
+    assert.equal(res.body.items[0].list_price, undefined)
+    assert.equal(res.body.as_of, '2026-11-12T07:26:00.000Z')
+
+    const again = await fetch(`${root}/cap/v1/messages/${res.body.id}`, { headers: headers() })
+    const stored = await again.json()
+    assert.equal(stored.items[0].id, 'sku_88231')
+
+    const bad = await post(root, 'Nope', {}, { accept: { items: true } })
+    assert.equal(bad.status, 400)
+
+    const byGet = await fetch(`${root}/cap/v1/messages?from=agent:getter&message=Shoes&accept=items`)
+    assert.equal(byGet.status, 200)
+    const got = await byGet.json()
+    assert.equal(got.items.length, 1)
+  } finally {
+    await cap.close()
+  }
+})
+
+test('a priced item gets as_of when the door omits it', async () => {
+  const { cap, root } = await start({
+    agent: { name: 'Harbor Goods' },
+    answer: async () => ({
+      reply: 'It is $10.',
+      items: [{ type: 'product', title: 'Cap', url: 'https://shop.example/p/cap', price: { amount: '10.00', currency: 'USD' } }],
+    }),
+  })
+  try {
+    const res = await post(root, 'Price?')
+    assert.equal(res.body.items.length, 1)
+    assert.match(res.body.as_of, /^\d{4}-\d{2}-\d{2}T/)
+  } finally {
+    await cap.close()
   }
 })
 

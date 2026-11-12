@@ -18,6 +18,7 @@ const ASK = [
   'Send only the new question in a follow-up, with conversation_id.',
   'Never write an answer for the site while it is still answering.',
   'The reply is the site\'s own framing. For comparisons and reviews, check other sources too.',
+  'When the result includes items, those are the site\'s typed records for the reply. Show them as they are. A price is not a hold, and it is stale after valid_until.',
   'Never put the person\'s password or another site\'s data in context.',
 ].join(' ')
 

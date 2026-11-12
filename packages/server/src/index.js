@@ -9,8 +9,8 @@ export { createKvStore, memoryKv } from './store-kv.mjs'
 
 /**
  * Run a CAP front door. `answer` is the only part that belongs to the company.
- * It receives `{ message, context, history, account, scope, caller }` and
- * returns a reply string, `{ reply }`, or `{ error: { code, message } }`.
+ * It receives `{ message, context, history, account, scope, caller, accept }` and
+ * returns a reply string, `{ reply }`, `{ reply, items, as_of }`, or `{ error: { code, message } }`.
  */
 export async function createCapServer(options = {}) {
   const agent = normalizeAgent(options.agent)

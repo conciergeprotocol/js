@@ -30,14 +30,18 @@ async function postHook(handler, payload) {
 
 export function handlerAnswer(handler = { type: 'echo' }) {
   const login = { error: { code: 'login_required', message: 'Log in to your account to ask about it.' } }
-  return async ({ message, context, history, account, scope }) => {
+  return async ({ message, context, history, account, scope, accept }) => {
     if (handler.account && !account) return login
     if (handler.type === 'static') return { reply: String(handler.reply ?? '') }
     if (handler.type === 'echo') return { reply: message }
-    const body = await postHook(handler, { message, context, history, account, scope })
+    const body = await postHook(handler, { message, context, history, account, scope, accept })
     if (body.error) return body
-    if (body.confirm) return { confirm: body.confirm, reply: typeof body.reply === 'string' ? body.reply : '' }
-    return { reply: typeof body.reply === 'string' ? body.reply : '' }
+    const items = Array.isArray(body.items) ? body.items : undefined
+    const asOf = typeof body.as_of === 'string' ? body.as_of : undefined
+    if (body.confirm) {
+      return { confirm: body.confirm, reply: typeof body.reply === 'string' ? body.reply : '', items, as_of: asOf }
+    }
+    return { reply: typeof body.reply === 'string' ? body.reply : '', items, as_of: asOf }
   }
 }
 
