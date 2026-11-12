@@ -21,6 +21,7 @@ export function createTools(cap) {
         const answer = await cap.ask(domain, message, {
           context,
           previousMessageId: conversation_id,
+          accept: ['items'],
         })
         if (answer.status === 'working') {
           return {
@@ -33,7 +34,12 @@ export function createTools(cap) {
         if (answer.status === 'failed') {
           return { status: 'failed', error: answer.error, conversation_id: answer.id }
         }
-        return { status: 'done', reply: answer.reply, conversation_id: answer.id }
+        return {
+          status: 'done',
+          reply: answer.reply,
+          conversation_id: answer.id,
+          ...(answer.items ? { items: answer.items, as_of: answer.as_of } : {}),
+        }
       } catch (err) {
         if (err instanceof NoDoorError) {
           return { door: false, message: `${domain} has no CAP front door. Browse the site instead.` }
@@ -48,7 +54,12 @@ export function createTools(cap) {
         return { status: 'working', message_id: answer.id, message: ASK_HINT }
       }
       if (answer.status === 'failed') return { status: 'failed', error: answer.error, message_id: answer.id }
-      return { status: 'done', reply: answer.reply, message_id: answer.id }
+      return {
+        status: 'done',
+        reply: answer.reply,
+        message_id: answer.id,
+        ...(answer.items ? { items: answer.items, as_of: answer.as_of } : {}),
+      }
     },
   }
 }

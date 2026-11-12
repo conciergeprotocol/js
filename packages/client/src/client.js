@@ -99,6 +99,11 @@ function normalize(body) {
     message.error = { code: String(body.error.code || 'failed'), message: String(body.error.message || '') }
   }
   if (body.status === 'done' && body.confirmation) message.confirmation = body.confirmation
+  if (body.status === 'done' && Array.isArray(body.items)) {
+    const items = body.items.filter((item) => item && typeof item === 'object' && typeof item.type === 'string' && typeof item.title === 'string' && typeof item.url === 'string').slice(0, 20)
+    if (items.length) message.items = items
+  }
+  if (body.status === 'done' && typeof body.as_of === 'string') message.as_of = body.as_of
   return message
 }
 
@@ -284,6 +289,7 @@ export function createClient(options = {}) {
     const payload = { message }
     if (askOptions.context) payload.context = askOptions.context
     if (askOptions.previousMessageId) payload.previous_message_id = askOptions.previousMessageId
+    if (Array.isArray(askOptions.accept) && askOptions.accept.length) payload.accept = askOptions.accept
     const response = await call(
       door,
       (token) => send(messagesUrl(door), { method: 'POST', json: payload, token, idempotencyKey, signal: askOptions.signal }),

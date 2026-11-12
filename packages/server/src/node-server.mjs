@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import { fail, readBody, requestOrigin, send } from './http.mjs'
+import { parseAccept, sanitizeItems } from './items.mjs'
 import { newConfirmationId, newMessageId, startOfUtcDay } from './store.mjs'
 
 const MAX_MESSAGE = 8000
@@ -28,21 +29,26 @@ export function helpText(name, capUrl) {
     `${capUrl}/messages?from=agent:{your-id}&message={your question, URL-encoded}`,
     '',
     '200 means the reply is ready. 202 means it is still working: wait Retry-After seconds, then GET the Location URL.',
+    'Items: add "accept": ["items"] to the JSON, or accept=items to the GET, to also receive typed results.',
     `Spec: ${SPEC_URL}`,
     '',
   ].join('\n')
 }
 
 /** Fetch tools retry a GET, so the same question from the same agent within a minute is asked once. */
-function getAskKey(caller, message, previousId) {
+function getAskKey(caller, message, previousId, accept) {
   const minute = Math.floor(Date.now() / 60_000)
-  return `get-${createHash('sha256').update(JSON.stringify([caller, message, previousId, minute])).digest('hex').slice(0, 32)}`
+  return `get-${createHash('sha256').update(JSON.stringify([caller, message, previousId, accept || [], minute])).digest('hex').slice(0, 32)}`
 }
 
 export function publicMessage(msg, confirmation = null) {
   const view = { id: msg.id, status: msg.status }
   if (msg.status === 'done') view.reply = msg.reply ?? ''
   if (msg.status === 'failed') view.error = msg.error || { code: 'failed', message: 'The agent could not answer.' }
+  if (msg.status === 'done' && Array.isArray(msg.items) && msg.items.length) {
+    view.items = msg.items
+    if (msg.as_of) view.as_of = msg.as_of
+  }
   if (msg.status === 'done' && confirmation) view.confirmation = confirmation
   view.created_at = msg.created_at
   view.finished_at = msg.finished_at || null
@@ -76,6 +82,13 @@ function queryCaller(url) {
   return match ? match[1] : ''
 }
 
+function withItems(result, value, finishedAt) {
+  if (result.status !== 'done') return result
+  const cleaned = sanitizeItems(value?.items, { asOf: value?.as_of, now: finishedAt })
+  if (!cleaned.items.length) return result
+  return { ...result, items: cleaned.items, as_of: cleaned.as_of }
+}
+
 function outcome(value) {
   if (value?.error) {
     return {
@@ -94,7 +107,8 @@ function outcome(value) {
  * `scope` is `read` or `write` with a token, and null without one.
  * To hold an action for the person's approval, it resolves to
  * `{ confirm: { summary, authorization_details }, reply? }` instead.
- * It runs on the owner. Nothing it uses is returned except the reply text.
+ * `{ reply, items, as_of }` adds typed results. Malformed items are dropped.
+ * It runs on the owner. Nothing it uses is returned except the reply text and those items.
  */
 export function createCapServer({
   store,
@@ -309,9 +323,14 @@ export function createCapServer({
       }
       const message = url.searchParams.get('message') || ''
       const previousId = url.searchParams.get('previous_message_id') || null
+      const accept = parseAccept(url.searchParams.get('accept'))
+      if (accept === false) {
+        fail(res, 400, 'invalid_request', 'accept must be a comma-separated list, such as items.')
+        return
+      }
       await sendMessage(req, res, caller, origin, {
-        body: { message, previous_message_id: previousId },
-        key: getAskKey(caller, message, previousId),
+        body: { message, previous_message_id: previousId, accept: accept || undefined },
+        key: getAskKey(caller, message, previousId, accept),
         locationQuery: byQuery ? `?from=${encodeURIComponent(`agent:${caller}`)}` : '',
       })
       return
@@ -362,6 +381,11 @@ export function createCapServer({
     const previousId = body.previous_message_id ?? null
     if (previousId != null && (typeof previousId !== 'string' || !previousId)) {
       fail(res, 400, 'invalid_request', 'previous_message_id must be a message id.')
+      return
+    }
+    const accept = parseAccept(body.accept)
+    if (accept === false) {
+      fail(res, 400, 'invalid_request', 'accept must be an array of strings.')
       return
     }
 
@@ -418,14 +442,20 @@ export function createCapServer({
     }
 
     const work = Promise.resolve()
-      .then(() => answer({ message: msg.message, context: msg.context, history, account: account || null, scope, caller }))
+      .then(() => answer({ message: msg.message, context: msg.context, history, account: account || null, scope, caller, accept: accept || [] }))
       .catch(() => ({ error: { code: 'failed', message: 'The agent could not answer.' } }))
       .then(async (value) => {
         const held = value?.confirm && !value.error ? await hold(value, msg, scope, origin) : null
-        const result = held ? held.result : outcome(value)
-        const confirmationId = held?.id || null
         const finishedAt = new Date().toISOString()
-        await store.finish(msg.id, { ...result, finishedAt, confirmationId })
+        const result = withItems(held ? held.result : outcome(value), value, finishedAt)
+        const confirmationId = held?.id || null
+        await store.finish(msg.id, {
+          ...result,
+          finishedAt,
+          confirmationId,
+          items: result.items || null,
+          asOf: result.as_of || null,
+        })
         Object.assign(msg, result, { finished_at: finishedAt, confirmation_id: confirmationId })
       })
     let timer

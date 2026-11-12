@@ -74,6 +74,8 @@ const GRANT_COLUMNS = [
   "ALTER TABLE oauth_codes ADD COLUMN scope TEXT NOT NULL DEFAULT 'read'",
   "ALTER TABLE oauth_devices ADD COLUMN scope TEXT NOT NULL DEFAULT 'read'",
   'ALTER TABLE messages ADD COLUMN confirmation_id TEXT',
+  'ALTER TABLE messages ADD COLUMN items_json TEXT',
+  'ALTER TABLE messages ADD COLUMN as_of TEXT',
 ]
 
 export function tokenHash(token) {
@@ -106,6 +108,8 @@ function mapMessage(row) {
     created_at: row.created_at,
     finished_at: row.finished_at ?? null,
     confirmation_id: row.confirmation_id || null,
+    items: row.items_json ? JSON.parse(row.items_json) : null,
+    as_of: row.as_of || null,
   }
 }
 
@@ -302,10 +306,10 @@ function driver({ run, get, close }) {
         return { message: existing, created: false }
       }
     },
-    async finish(id, { status, reply, error, finishedAt, confirmationId = null }) {
+    async finish(id, { status, reply, error, finishedAt, confirmationId = null, items = null, asOf = null }) {
       await run(
-        'UPDATE messages SET status = ?, reply = ?, error_json = ?, finished_at = ?, confirmation_id = ? WHERE id = ?',
-        [status, reply ?? null, error ? JSON.stringify(error) : null, finishedAt, confirmationId, id],
+        'UPDATE messages SET status = ?, reply = ?, error_json = ?, finished_at = ?, confirmation_id = ?, items_json = ?, as_of = ? WHERE id = ?',
+        [status, reply ?? null, error ? JSON.stringify(error) : null, finishedAt, confirmationId, items ? JSON.stringify(items) : null, asOf, id],
       )
     },
     async byId(id) {
