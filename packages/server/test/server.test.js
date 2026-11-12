@@ -201,6 +201,23 @@ test('checkDoor accepts a live door and rejects a missing file', async () => {
   }
 })
 
+test('checkDoor rejects a login whose metadata omits the CAP URL', async () => {
+  const origin = 'http://127.0.0.1:8088'
+  const card = `Protocol: CAP/1.0\nCAP: ${origin}/cap/v1\nOAuth: ${origin}/oauth\n`
+  const fetchImpl = async (url) => {
+    const path = String(url)
+    if (path.endsWith('/agent.txt')) return new Response(card, { status: 200 })
+    if (path.includes('oauth-authorization-server')) {
+      return Response.json({ issuer: `${origin}/oauth` })
+    }
+    if (path.endsWith('/messages')) return Response.json({ id: 'msg_abc12345', status: 'done', reply: 'Hi' })
+    return new Response('', { status: 404 })
+  }
+  const result = await checkDoor(origin, { fetch: fetchImpl })
+  assert.equal(result.ok, false)
+  assert.match(result.failures.join('\n'), /protected_resources/)
+})
+
 test('login adds the OAuth line', async () => {
   const { cap, root } = await start({
     agent: { name: 'Harbor Goods' },
@@ -213,6 +230,8 @@ test('login adds the OAuth line', async () => {
     const meta = await (await fetch(`${root}/.well-known/oauth-authorization-server/oauth`)).json()
     assert.equal(meta.issuer, `${root}/oauth`)
     assert.deepEqual(meta.protected_resources, [text.match(/^CAP: (.+)$/m)[1]])
+    const checked = await checkDoor(root, { message: 'Hi' })
+    assert.deepEqual(checked.failures, [])
   } finally {
     await cap.close()
   }
