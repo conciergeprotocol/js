@@ -1,0 +1,12 @@
+{
+  "docs": "https://conciergeprotocol.org/callers.md",
+  "privacy": "https://github.com/conciergeprotocol/js/blob/main/listing/privacy.md",
+  "security": "https://conciergeprotocol.org/security.md",
+  "support": "https://github.com/conciergeprotocol/js/issues",
+  "supportEmail": "tony@cosmicjs.com",
+  "website": "https://conciergeprotocol.org",
+  "repository": "https://github.com/conciergeprotocol/js",
+  "spec": "https://github.com/conciergeprotocol/cap",
+  "npm": "https://www.npmjs.com/package/@conciergeprotocol/mcp",
+  "registry": "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.conciergeprotocol/mcp"
+}

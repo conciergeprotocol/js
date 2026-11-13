@@ -1,0 +1,66 @@
+{
+  "manifest_version": "0.3",
+  "name": "concierge-agent-protocol",
+  "display_name": "Concierge Agent Protocol",
+  "version": "0.2.0",
+  "description": "Ask a company through its Concierge Agent Protocol front door.",
+  "long_description": "Ask a company that publishes a CAP front door. Discover the door, send one question, and check a reply that is still in progress. The company's tools and keys stay behind the door.",
+  "author": {
+    "name": "Concierge Agent Protocol",
+    "email": "tony@cosmicjs.com",
+    "url": "https://conciergeprotocol.org"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/conciergeprotocol/js"
+  },
+  "homepage": "https://conciergeprotocol.org",
+  "documentation": "https://conciergeprotocol.org/callers.md",
+  "support": "https://github.com/conciergeprotocol/js/issues",
+  "icon": "icon.png",
+  "license": "Apache-2.0",
+  "keywords": ["mcp", "agents", "cap", "model-context-protocol"],
+  "privacy_policies": [
+    "https://github.com/conciergeprotocol/js/blob/main/listing/privacy.md"
+  ],
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"],
+      "env": {
+        "CAP_FROM": "${user_config.cap_from}"
+      }
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=18"
+    }
+  },
+  "user_config": {
+    "cap_from": {
+      "type": "string",
+      "title": "Caller identity",
+      "description": "Must look like agent:my-assistant. Defaults to agent:cap-mcp.",
+      "required": false,
+      "default": "agent:cap-mcp"
+    }
+  },
+  "tools": [
+    {
+      "name": "cap_discover",
+      "description": "Check whether a website has a CAP front door, and whether visitors can log in."
+    },
+    {
+      "name": "cap_ask",
+      "description": "Send one question to a company's CAP front door and wait up to 60 seconds."
+    },
+    {
+      "name": "cap_check",
+      "description": "Read a CAP message that was still being answered."
+    }
+  ]
+}
