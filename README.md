@@ -64,6 +64,8 @@ Cursor, Claude Desktop, and VS Code use the same block. In VS Code it goes in `.
 
 `CAP_FROM` defaults to `agent:cap-mcp`. The tools are `cap_discover`, `cap_ask`, and `cap_check`. The server is listed in the MCP registry as `io.github.conciergeprotocol/mcp`. `cap_ask` waits 60 seconds. If the company is still answering, it returns the message id and the model calls `cap_check` instead of guessing.
 
+The same install block is in [packages/mcp/README.md](packages/mcp/README.md) and [listing/install.md](listing/install.md). Directory copy and the logo are in [listing](listing).
+
 ## Run a door
 
 `answer` is the company's own function. The server keeps the thread, hides one caller's reply from another, and enforces the daily message cap.

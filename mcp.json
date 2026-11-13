@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "cap": {
+      "command": "npx",
+      "args": ["-y", "@conciergeprotocol/mcp"],
+      "env": {
+        "CAP_FROM": "${CAP_FROM}"
+      }
+    }
+  }
+}

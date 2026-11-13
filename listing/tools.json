@@ -1,0 +1,23 @@
+[
+  {
+    "name": "cap_discover",
+    "title": "Discover a front door",
+    "description": "Check whether a website has a CAP front door, and whether visitors can log in.",
+    "readOnlyHint": true,
+    "destructiveHint": false
+  },
+  {
+    "name": "cap_ask",
+    "title": "Ask a company",
+    "description": "Send one question to a company's CAP front door and wait up to 60 seconds.",
+    "readOnlyHint": false,
+    "destructiveHint": false
+  },
+  {
+    "name": "cap_check",
+    "title": "Check a reply",
+    "description": "Read a CAP message that was still being answered. Do not guess a reply while the status is working.",
+    "readOnlyHint": true,
+    "destructiveHint": false
+  }
+]

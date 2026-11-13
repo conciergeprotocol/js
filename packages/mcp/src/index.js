@@ -1,9 +1,12 @@
 #!/usr/bin/env node
+import { readFileSync } from 'node:fs'
 import { createClient } from '@conciergeprotocol/client'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import * as z from 'zod/v4'
 import { createTools, toolError } from './tools.js'
+
+const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 
 const FROM = /^agent:[A-Za-z0-9_.-]{1,64}$/
 const from = process.env.CAP_FROM || 'agent:cap-mcp'
@@ -32,10 +35,17 @@ function fail(err) {
   return { isError: true, content: [{ type: 'text', text: toolError(err) }] }
 }
 
-const server = new McpServer({ name: 'cap', version: '0.1.0' })
+const server = new McpServer({ name: 'cap', version })
 
 server.registerTool('cap_discover', {
+  title: 'Discover a front door',
   description: 'Check whether a website has a CAP front door, and whether visitors can log in.',
+  annotations: {
+    title: 'Discover a front door',
+    readOnlyHint: true,
+    destructiveHint: false,
+    openWorldHint: true,
+  },
   inputSchema: { domain: z.string().describe('The company domain, such as example.com') },
 }, async (args) => {
   try {
@@ -46,7 +56,14 @@ server.registerTool('cap_discover', {
 })
 
 server.registerTool('cap_ask', {
+  title: 'Ask a company',
   description: ASK,
+  annotations: {
+    title: 'Ask a company',
+    readOnlyHint: false,
+    destructiveHint: false,
+    openWorldHint: true,
+  },
   inputSchema: {
     domain: z.string().describe('The company domain, such as example.com'),
     message: z.string().describe('The question to send. On a follow-up, send only the new question.'),
@@ -62,7 +79,14 @@ server.registerTool('cap_ask', {
 })
 
 server.registerTool('cap_check', {
+  title: 'Check a reply',
   description: 'Read a CAP message that was still being answered. Do not guess a reply while the status is working.',
+  annotations: {
+    title: 'Check a reply',
+    readOnlyHint: true,
+    destructiveHint: false,
+    openWorldHint: true,
+  },
   inputSchema: {
     domain: z.string().describe('The company domain used in cap_ask'),
     message_id: z.string().describe('The message_id returned by cap_ask'),

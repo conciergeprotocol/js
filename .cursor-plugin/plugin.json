@@ -1,0 +1,26 @@
+{
+  "name": "concierge-agent-protocol",
+  "displayName": "Concierge Agent Protocol",
+  "version": "0.2.0",
+  "description": "Ask a company through its Concierge Agent Protocol front door.",
+  "author": {
+    "name": "Concierge Agent Protocol",
+    "email": "tony@cosmicjs.com"
+  },
+  "homepage": "https://conciergeprotocol.org/callers.md",
+  "repository": "https://github.com/conciergeprotocol/js",
+  "license": "Apache-2.0",
+  "keywords": ["mcp", "agents", "cap", "concierge"],
+  "logo": "listing/logo.png",
+  "variables": {
+    "type": "object",
+    "properties": {
+      "CAP_FROM": {
+        "type": "string",
+        "title": "Caller identity",
+        "description": "Must look like agent:my-assistant. Defaults to agent:cap-mcp.",
+        "default": "agent:cap-mcp"
+      }
+    }
+  }
+}
