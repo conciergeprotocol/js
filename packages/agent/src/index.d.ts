@@ -34,9 +34,12 @@ export type AnswerInput = {
   caller?: string
 }
 
+/** Model tokens for one answer. The server keeps them for the owner and never sends them to the caller. */
+export type TokenUsage = { input_tokens: number | null; output_tokens: number | null }
+
 export type AnswerResult =
-  | { reply: string }
-  | { error: { code: string; message: string } }
+  | { reply: string; usage?: TokenUsage }
+  | { error: { code: string; message: string }; usage?: TokenUsage }
 
 export type CapAnswer = ((input: AnswerInput) => Promise<AnswerResult>) & {
   close(): Promise<void>

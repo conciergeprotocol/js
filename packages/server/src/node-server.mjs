@@ -72,6 +72,11 @@ function bearer(req) {
   return match ? match[1] : ''
 }
 
+/** Only a Bearer header asks for an account. A browser can resend another scheme, such as the log's Basic login. */
+function sendsBearer(req) {
+  return /^Bearer\b/i.test(String(req.headers.authorization || ''))
+}
+
 function callerId(req) {
   const match = String(req.headers['cap-from'] || '').match(/^agent:([A-Za-z0-9_.-]{1,64})$/)
   return match ? match[1] : ''
@@ -87,6 +92,12 @@ function withItems(result, value, finishedAt) {
   const cleaned = sanitizeItems(value?.items, { asOf: value?.as_of, now: finishedAt })
   if (!cleaned.items.length) return result
   return { ...result, items: cleaned.items, as_of: cleaned.as_of }
+}
+
+/** Token counts for the owner's log. Anything but a non-negative integer reads as unknown. */
+function tokenCounts(usage) {
+  const count = (value) => (Number.isInteger(value) && value >= 0 ? value : null)
+  return { inputTokens: count(usage?.input_tokens), outputTokens: count(usage?.output_tokens) }
 }
 
 function outcome(value) {
@@ -120,6 +131,7 @@ export function createCapServer({
   dailyLimit = 0,
   maxTurns = 20,
   oauth = null,
+  log = null,
   publicUrl = '',
   extraRoutes,
 }) {
@@ -213,7 +225,7 @@ export function createCapServer({
   }
 
   async function grantFor(req, caller) {
-    if (!req.headers.authorization) return { grant: null }
+    if (!sendsBearer(req)) return { grant: null }
     const grant = await store.grantByToken(bearer(req))
     if (!grant || grant.kind === 'refresh') return { status: 401, code: 'unauthorized', message: 'The token is invalid, expired, or revoked.' }
     if (grant.client_id !== caller) return { status: 403, code: 'forbidden', message: 'This token was issued to a different agent.' }
@@ -226,7 +238,7 @@ export function createCapServer({
    */
   async function accountFor(req) {
     const caller = callerId(req)
-    if (!caller || !req.headers.authorization) return null
+    if (!caller || !sendsBearer(req)) return null
     const access = await grantFor(req, caller)
     if (!access.grant) return null
     return { account: access.grant.account, scope: access.grant.scope === 'write' ? 'write' : 'read', caller }
@@ -284,6 +296,7 @@ export function createCapServer({
       send(res, 200, null, { type: 'text/plain; charset=utf-8', raw: `${lines.join('\n')}\n` })
       return
     }
+    if (log && (await log.handle(req, res, url))) return
     if (oauth && (await oauth.handle(req, res, url, origin))) return
     if (extraRoutes && (await extraRoutes(req, res, url))) return
 
@@ -317,7 +330,7 @@ export function createCapServer({
       return
     }
     if (req.method === 'GET' && url.pathname === '/cap/v1/messages' && asking) {
-      if (req.headers.authorization) {
+      if (sendsBearer(req)) {
         fail(res, 400, 'invalid_request', 'A GET asks public questions only. Send account questions with POST.')
         return
       }
@@ -451,6 +464,7 @@ export function createCapServer({
         const confirmationId = held?.id || null
         await store.finish(msg.id, {
           ...result,
+          ...tokenCounts(value?.usage),
           finishedAt,
           confirmationId,
           items: result.items || null,

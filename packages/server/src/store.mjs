@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS messages (
   finished_at TEXT
 );
 CREATE INDEX IF NOT EXISTS messages_by_caller ON messages (caller_id, created_at);
+CREATE INDEX IF NOT EXISTS messages_by_created ON messages (created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS messages_idempotency
   ON messages (caller_id, account, client_id, idempotency_key)
   WHERE idempotency_key IS NOT NULL;
@@ -76,6 +77,8 @@ const GRANT_COLUMNS = [
   'ALTER TABLE messages ADD COLUMN confirmation_id TEXT',
   'ALTER TABLE messages ADD COLUMN items_json TEXT',
   'ALTER TABLE messages ADD COLUMN as_of TEXT',
+  'ALTER TABLE messages ADD COLUMN input_tokens INTEGER',
+  'ALTER TABLE messages ADD COLUMN output_tokens INTEGER',
 ]
 
 export function tokenHash(token) {
@@ -110,6 +113,8 @@ function mapMessage(row) {
     confirmation_id: row.confirmation_id || null,
     items: row.items_json ? JSON.parse(row.items_json) : null,
     as_of: row.as_of || null,
+    input_tokens: row.input_tokens == null ? null : Number(row.input_tokens),
+    output_tokens: row.output_tokens == null ? null : Number(row.output_tokens),
   }
 }
 
@@ -138,7 +143,8 @@ export function newConfirmationId() {
 function sqliteStore(db) {
   const run = (sql, params = []) => db.prepare(sql).run(...params)
   const get = (sql, params = []) => db.prepare(sql).get(...params)
-  return driver({ run, get, close: () => db.close() })
+  const all = (sql, params = []) => db.prepare(sql).all(...params)
+  return driver({ run, get, all, close: () => db.close() })
 }
 
 async function postgresStore(connectionString) {
@@ -151,7 +157,8 @@ async function postgresStore(connectionString) {
   const pool = new pg.default.Pool({ connectionString })
   const run = async (sql, params = []) => { await pool.query(toPg(sql), params) }
   const get = async (sql, params = []) => (await pool.query(toPg(sql), params)).rows[0]
-  return driver({ run, get, close: () => pool.end() })
+  const all = async (sql, params = []) => (await pool.query(toPg(sql), params)).rows
+  return driver({ run, get, all, close: () => pool.end() })
 }
 
 function toPg(sql) {
@@ -159,7 +166,7 @@ function toPg(sql) {
   return sql.replace(/\?/g, () => `$${++n}`)
 }
 
-function driver({ run, get, close }) {
+function driver({ run, get, all, close }) {
   return {
     close,
     async migrate() {
@@ -306,14 +313,24 @@ function driver({ run, get, close }) {
         return { message: existing, created: false }
       }
     },
-    async finish(id, { status, reply, error, finishedAt, confirmationId = null, items = null, asOf = null }) {
+    async finish(id, { status, reply, error, finishedAt, confirmationId = null, items = null, asOf = null, inputTokens = null, outputTokens = null }) {
       await run(
-        'UPDATE messages SET status = ?, reply = ?, error_json = ?, finished_at = ?, confirmation_id = ?, items_json = ?, as_of = ? WHERE id = ?',
-        [status, reply ?? null, error ? JSON.stringify(error) : null, finishedAt, confirmationId, items ? JSON.stringify(items) : null, asOf, id],
+        `UPDATE messages SET status = ?, reply = ?, error_json = ?, finished_at = ?, confirmation_id = ?, items_json = ?, as_of = ?,
+           input_tokens = ?, output_tokens = ? WHERE id = ?`,
+        [status, reply ?? null, error ? JSON.stringify(error) : null, finishedAt, confirmationId, items ? JSON.stringify(items) : null, asOf,
+          inputTokens, outputTokens, id],
       )
     },
     async byId(id) {
       return mapMessage(await get('SELECT * FROM messages WHERE id = ?', [id]))
+    },
+    /** Every caller's messages since `sinceIso`, newest first. For the owner, never for a caller. */
+    async recentMessages({ sinceIso, limit }) {
+      const rows = await all(
+        'SELECT * FROM messages WHERE created_at >= ? ORDER BY created_at DESC LIMIT ?',
+        [sinceIso, limit],
+      )
+      return rows.map(mapMessage)
     },
     async insertConfirmation(c) {
       await run(
