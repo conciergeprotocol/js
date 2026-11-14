@@ -1,5 +1,12 @@
 # @conciergeprotocol/mcp
 
+## 0.2.1
+
+### Patch Changes
+
+- 5a4e5fc: Report the published package version during initialize, and send a title plus read-only and destructive hints on each tool.
+  - @conciergeprotocol/client@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
