@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { createLog } from './log.mjs'
 import { createOAuth } from './oauth.mjs'
 import { createCapServer as createNodeServer } from './node-server.mjs'
 import { createStore } from './store.mjs'
@@ -17,6 +18,10 @@ export async function createCapServer(options = {}) {
   if (typeof options.answer !== 'function') throw new Error('createCapServer needs an answer function.')
 
   const store = options.store || await defaultStore(options)
+  const retentionHours = options.retentionHours ?? 24
+  const log = options.log
+    ? createLog({ store, agentName: agent.name, retentionHours, secret: options.log.secret, path: options.log.path })
+    : null
 
   for (const grant of options.grants || []) {
     if (grant.token && grant.account && grant.client) {
@@ -52,10 +57,11 @@ export async function createCapServer(options = {}) {
     answer: normalizeAnswer(options.answer),
     waitMs: options.waitMs ?? (options.waitSeconds ?? 20) * 1000,
     retryAfter: options.retryAfter ?? 5,
-    retentionHours: options.retentionHours ?? 24,
+    retentionHours,
     dailyLimit: options.dailyLimit ?? 0,
     maxTurns: options.maxTurns ?? 20,
     oauth,
+    log,
     publicUrl: options.publicUrl ?? process.env.PUBLIC_URL ?? '',
     extraRoutes: options.extraRoutes,
   })

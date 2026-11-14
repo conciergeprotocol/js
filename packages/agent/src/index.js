@@ -89,15 +89,21 @@ export async function createAnswer(options = {}) {
       return { error: { code: 'failed', message: 'The agent could not answer.' } }
     }
 
-    const usage = await Promise.resolve(result?.totalUsage)
-    spent += Number(usage?.totalTokens || 0)
+    const totalUsage = await Promise.resolve(result?.totalUsage)
+    spent += Number(totalUsage?.totalTokens || 0)
+    const usage = tokenUsage(totalUsage)
     const text = typeof result?.text === 'string' ? result.text.trim() : ''
-    if (!text) return { error: { code: 'failed', message: 'The agent could not answer.' } }
-    return { reply: text }
+    if (!text) return { error: { code: 'failed', message: 'The agent could not answer.' }, usage }
+    return { reply: text, usage }
   }
 
   answer.close = () => closeClients(clients)
   return answer
+}
+
+function tokenUsage(usage) {
+  const count = (value) => (Number.isFinite(value) && value >= 0 ? value : null)
+  return { input_tokens: count(usage?.inputTokens), output_tokens: count(usage?.outputTokens) }
 }
 
 function connectMcp(source) {

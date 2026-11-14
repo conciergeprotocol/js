@@ -63,6 +63,24 @@ const door = await createCapHandler({
 })
 ```
 
+## See the questions
+
+Pass `log` to read the door's recent messages in a browser. The page lists every caller's questions and replies from the last `retentionHours`, newest first, with counts, failures, and the median time to answer. Add `?format=json` for the same data as JSON.
+
+```js
+const cap = await createCapServer({
+  agent: { name: 'Harbor Goods' },
+  answer,
+  log: { secret: process.env.CAP_LOG_SECRET },
+})
+```
+
+Open `/log`. The browser asks for a username and password. Any username works, and the password is the secret, at least 16 characters. Serve it over HTTPS. Set `path` to move it. It cannot sit under `/cap/v1`, `/oauth`, or `/.well-known`.
+
+The page shows the newest 200 messages. It follows the system light or dark theme; the switch at the top right (or ⌘/ / Ctrl+/) picks one, and the browser remembers it. The caller name is the `CAP-From` label the visiting agent chose, not proof of who sent it.
+
+To count model tokens, return `usage: { input_tokens, output_tokens }` next to the reply or the error. The log shows them per message and in total. The caller never receives them. `@conciergeprotocol/agent` returns them for you.
+
 ## The file on the company domain
 
 This process can run on any host. The company domain still serves `agent.txt`. Point `CAP` at this server, or rewrite `/cap/v1` to it. Set `publicUrl` when the public origin differs from the request host.
@@ -159,6 +177,8 @@ export async function GET(request) {
   "daily_limit": 500
 }
 ```
+
+Add `"log": {}` to serve the log with the secret in `CAP_LOG_SECRET`, or name another variable with `"log": { "secret_env": "MY_SECRET", "path": "/log" }`.
 
 `static` returns fixed text. `echo` returns the message. `http` POSTs `{ message, context, history, account, scope, accept }` to a URL and expects `{ "reply": "..." }`. The hook may also return `items` and `as_of`. Set `handler.secret_env` to send that environment variable as `X-Cap-Secret`.
 

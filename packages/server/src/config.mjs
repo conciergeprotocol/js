@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { createLog } from './log.mjs'
 import { createOAuth } from './oauth.mjs'
 import { createCapServer } from './node-server.mjs'
 import { createStore } from './store.mjs'
@@ -38,10 +39,11 @@ export function handlerAnswer(handler = { type: 'echo' }) {
     if (body.error) return body
     const items = Array.isArray(body.items) ? body.items : undefined
     const asOf = typeof body.as_of === 'string' ? body.as_of : undefined
+    const usage = body.usage && typeof body.usage === 'object' ? body.usage : undefined
     if (body.confirm) {
-      return { confirm: body.confirm, reply: typeof body.reply === 'string' ? body.reply : '', items, as_of: asOf }
+      return { confirm: body.confirm, reply: typeof body.reply === 'string' ? body.reply : '', items, as_of: asOf, usage }
     }
-    return { reply: typeof body.reply === 'string' ? body.reply : '', items, as_of: asOf }
+    return { reply: typeof body.reply === 'string' ? body.reply : '', items, as_of: asOf, usage }
   }
 }
 
@@ -99,16 +101,28 @@ export async function boot(options = {}) {
       deviceInterval: oauthConfig?.device_interval ?? 5,
     })
     : null
+  const retentionHours = config.retention_hours ?? 24
+  const logConfig = config.log
+  const log = logConfig
+    ? createLog({
+      store,
+      agentName: config.agent.name,
+      retentionHours,
+      secret: process.env[logConfig.secret_env || 'CAP_LOG_SECRET'],
+      path: logConfig.path,
+    })
+    : null
   const cap = createCapServer({
     store,
     agent: config.agent,
     answer: options.answer || handlerAnswer(config.handler),
     waitMs: options.waitMs ?? (config.wait_seconds ?? 20) * 1000,
     retryAfter: config.retry_after ?? 5,
-    retentionHours: config.retention_hours ?? 24,
+    retentionHours,
     dailyLimit: config.daily_limit ?? 0,
     maxTurns: config.max_turns ?? 20,
     oauth,
+    log,
     publicUrl: options.publicUrl ?? process.env.PUBLIC_URL ?? '',
     extraRoutes: options.extraRoutes,
   })

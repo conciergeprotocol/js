@@ -16,7 +16,7 @@ test('the reply is the model text, with the thread and the company rules', async
     instructions: 'Harbor Goods sells shoes.',
     generate: async (args) => {
       calls.push(args)
-      return { text: 'We are open Saturday.', totalUsage: { totalTokens: 15 } }
+      return { text: 'We are open Saturday.', totalUsage: { inputTokens: 12, outputTokens: 3, totalTokens: 15 } }
     },
   })
   const result = await answer({
@@ -26,7 +26,7 @@ test('the reply is the model text, with the thread and the company rules', async
     account: null,
     scope: null,
   })
-  assert.deepEqual(result, { reply: 'We are open Saturday.' })
+  assert.deepEqual(result, { reply: 'We are open Saturday.', usage: { input_tokens: 12, output_tokens: 3 } })
   assert.match(calls[0].system, /untrusted/)
   assert.match(calls[0].system, /Harbor Goods sells shoes/)
   assert.match(calls[0].system, /not signed in/)

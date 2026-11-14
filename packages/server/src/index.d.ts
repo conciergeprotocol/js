@@ -29,11 +29,14 @@ export type AnswerError = { error: { code: string; message: string } }
 
 export type StructuredResult = { items?: unknown[]; as_of?: string }
 
+/** Model tokens for one answer. Kept for the owner's log, never sent to the caller. */
+export type TokenUsage = { input_tokens?: number | null; output_tokens?: number | null }
+
 export type AnswerResult =
   | string
-  | ({ reply: string } & StructuredResult)
-  | AnswerError
-  | ({ confirm: { summary: string; authorization_details?: unknown[] }; reply?: string } & StructuredResult)
+  | ({ reply: string; usage?: TokenUsage } & StructuredResult)
+  | (AnswerError & { usage?: TokenUsage })
+  | ({ confirm: { summary: string; authorization_details?: unknown[] }; reply?: string; usage?: TokenUsage } & StructuredResult)
 
 export type Answer = (input: AnswerInput) => AnswerResult | Promise<AnswerResult>
 
@@ -69,6 +72,13 @@ export type CapServerOptions = {
   deviceInterval?: number
   hint?: string
   fetch?: typeof fetch
+  /**
+   * A read-only page of recent messages from every caller, for the owner.
+   * Off unless set. The browser asks for `secret` with Basic auth; any username works.
+   * `path` defaults to `/log` and cannot sit under `/cap/v1`, `/oauth`, or `/.well-known`.
+   * Add `?format=json` for the same data as JSON.
+   */
+  log?: { secret: string; path?: string }
   extraRoutes?: (req: IncomingMessage, res: ServerResponse, url: URL) => boolean | Promise<boolean>
 }
 

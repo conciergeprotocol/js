@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto'
 import { tokenHash } from './store.mjs'
 
+// The owner log reads at most this many of a day's messages.
+const MAX_DAY_LIST = 1000
+
 /**
  * A door store over any key-value service: `get(key)`, `set(key, value)`, and
  * `delete(key)`, with JSON values. Use it where the server has no disk, such as
@@ -16,6 +19,7 @@ export function createKvStore(kv) {
   const idempotencyKey = ({ callerId, account, clientId, key }) =>
     `msg-key:${createHash('sha256').update(JSON.stringify([callerId, account || '', clientId || '', key])).digest('hex')}`
   const dayKey = (callerId, iso) => `msg-day:${callerId}:${iso.slice(0, 10)}`
+  const listKey = (iso) => `msg-list:${iso.slice(0, 10)}`
 
   return {
     async close() {
@@ -164,9 +168,11 @@ export function createKvStore(kv) {
       const day = dayKey(msg.caller_id, msg.created_at)
       const count = await get(day)
       await kv.set(day, { n: Number(count?.n || 0) + 1 })
+      const list = await get(listKey(msg.created_at))
+      await kv.set(listKey(msg.created_at), { ids: [...(list?.ids || []), msg.id].slice(-MAX_DAY_LIST) })
       return { message, created: true }
     },
-    async finish(id, { status, reply, error, finishedAt, confirmationId = null, items = null, asOf = null }) {
+    async finish(id, { status, reply, error, finishedAt, confirmationId = null, items = null, asOf = null, inputTokens = null, outputTokens = null }) {
       const row = await get(`msg:${id}`)
       if (!row) return
       await kv.set(`msg:${id}`, {
@@ -178,10 +184,26 @@ export function createKvStore(kv) {
         confirmation_id: confirmationId,
         items: items || null,
         as_of: asOf || null,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
       })
     },
     async byId(id) {
       return get(`msg:${id}`)
+    },
+    async recentMessages({ sinceIso, limit }) {
+      const ids = []
+      for (let day = Date.parse(sinceIso.slice(0, 10)); day <= Date.now(); day += 86_400_000) {
+        const list = await get(listKey(new Date(day).toISOString()))
+        ids.push(...(list?.ids || []))
+      }
+      const rows = []
+      for (const id of ids.reverse()) {
+        if (rows.length >= limit) break
+        const row = await get(`msg:${id}`)
+        if (row && row.created_at >= sinceIso) rows.push(row)
+      }
+      return rows.sort((a, b) => (a.created_at === b.created_at ? 0 : a.created_at < b.created_at ? 1 : -1))
     },
     async insertConfirmation(c) {
       await kv.set(`cfm:${c.id}`, {

@@ -447,6 +447,142 @@ test('a priced item gets as_of when the door omits it', async () => {
   }
 })
 
+const LOG_SECRET = 'owner-secret-0123456789'
+const basic = (password) => ({ authorization: `Basic ${Buffer.from(`owner:${password}`).toString('base64')}` })
+
+test('the log is off unless the owner turns it on', async () => {
+  const { cap, root } = await start({ agent: { name: 'Harbor Goods' }, answer: async () => 'ok' })
+  try {
+    const res = await fetch(`${root}/log`, { headers: basic(LOG_SECRET) })
+    assert.equal(res.status, 404)
+  } finally {
+    await cap.close()
+  }
+})
+
+test('the log shows every caller to the owner and no one else', async () => {
+  const { cap, root } = await start({
+    agent: { name: 'Harbor Goods' },
+    log: { secret: LOG_SECRET },
+    answer: async ({ message }) => {
+      if (message === 'fail') return { error: { code: 'login_required', message: 'Log in first.' }, usage: { input_tokens: 50, output_tokens: 0 } }
+      return { reply: `Echo ${message}`, usage: { input_tokens: 1200, output_tokens: 20 } }
+    },
+  })
+  try {
+    const first = await post(root, '<script>alert(1)</script>', {}, { context: { size: 12 } })
+    assert.equal(first.body.usage, undefined, 'the caller never sees token counts')
+    assert.doesNotMatch(JSON.stringify(first.body), /tokens/)
+    await post(root, 'And Sunday?', {}, { previous_message_id: first.body.id })
+    await post(root, 'fail', { 'cap-from': 'agent:other' })
+
+    const anonymous = await fetch(`${root}/log`)
+    assert.equal(anonymous.status, 401)
+    assert.match(anonymous.headers.get('www-authenticate'), /^Basic /)
+    const wrong = await fetch(`${root}/log`, { headers: basic('not-the-secret-at-all') })
+    assert.equal(wrong.status, 401)
+    const posted = await fetch(`${root}/log`, { method: 'POST', headers: basic(LOG_SECRET) })
+    assert.equal(posted.status, 405)
+
+    const page = await fetch(`${root}/log`, { headers: basic(LOG_SECRET) })
+    const html = await page.text()
+    assert.equal(page.status, 200)
+    assert.match(page.headers.get('content-type'), /text\/html/)
+    const csp = page.headers.get('content-security-policy')
+    assert.match(csp, /default-src 'none'/)
+    const nonce = csp.match(/script-src 'nonce-([A-Za-z0-9+/=]+)'/)?.[1]
+    assert.ok(nonce, 'only a nonced script may run')
+    assert.deepEqual([...html.matchAll(/<script\b[^>]*>/g)].map((m) => m[0]), [`<script nonce="${nonce}">`])
+    assert.match(html, /data-set-theme="system"/)
+    assert.equal(page.headers.get('x-frame-options'), 'DENY')
+    assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'))
+    assert.doesNotMatch(html, /<script>alert/)
+    assert.match(html, /follow-up/)
+    assert.match(html, /login_required/)
+    assert.match(html, /Context: \{&quot;size&quot;:12\}/)
+    assert.match(html, />2,450<\/span><span class="label">Tokens in</)
+    assert.match(html, /1,200 <span class="muted">in<\/span><br>20 <span class="muted">out/)
+    assert.match(html, /<tr class="failed">/)
+    assert.match(html, /<span class="label">Follow-ups</)
+    assert.doesNotMatch(html, /Signed in/, 'a zero count stays out of the strip')
+
+    const json = await (await fetch(`${root}/log?format=json`, { headers: basic(LOG_SECRET) })).json()
+    assert.equal(json.retention_hours, 24)
+    assert.equal(json.truncated, false)
+    assert.equal(json.summary.total, 3)
+    assert.equal(json.summary.done, 2)
+    assert.equal(json.summary.failed, 1)
+    assert.equal(json.summary.follow_ups, 1)
+    assert.deepEqual(json.summary.callers, [{ caller: 'visitor', count: 2 }, { caller: 'other', count: 1 }])
+    assert.deepEqual(json.summary.errors, [{ code: 'login_required', count: 1 }])
+    const times = json.messages.map((msg) => msg.created_at)
+    assert.deepEqual(times, [...times].sort().reverse(), 'newest first')
+    assert.ok(json.messages.some((msg) => msg.message === '<script>alert(1)</script>'))
+    assert.ok(json.messages.every((msg) => typeof msg.duration_ms === 'number'))
+    assert.equal(json.summary.input_tokens, 2450)
+    assert.equal(json.summary.output_tokens, 40)
+    const failedRow = json.messages.find((msg) => msg.status === 'failed')
+    assert.deepEqual([failedRow.input_tokens, failedRow.output_tokens], [50, 0])
+  } finally {
+    await cap.close()
+  }
+})
+
+test('the log login a browser resends does not block public questions', async () => {
+  const { cap, root } = await start({
+    agent: { name: 'Harbor Goods' },
+    log: { secret: LOG_SECRET },
+    answer: async ({ message, account }) => `Echo ${message} ${account ?? 'public'}`,
+  })
+  try {
+    const url = `${root}/cap/v1/messages?from=agent:tester&message=${encodeURIComponent('What is Cosmic?')}`
+    const asked = await fetch(url, { headers: basic(LOG_SECRET) })
+    const body = await asked.json()
+    assert.equal(asked.status, 200)
+    assert.equal(body.reply, 'Echo What is Cosmic? public')
+    const read = await fetch(`${root}/cap/v1/messages/${body.id}?from=agent:tester`, { headers: basic(LOG_SECRET) })
+    assert.equal(read.status, 200)
+    const posted = await post(root, 'Hours?', basic(LOG_SECRET))
+    assert.equal(posted.body.reply, 'Echo Hours? public')
+    const withBearer = await fetch(url, { headers: { authorization: 'Bearer x' } })
+    assert.equal(withBearer.status, 400)
+  } finally {
+    await cap.close()
+  }
+})
+
+test('the log needs a long secret and its own path', async () => {
+  const options = { ...memoryStore(), agent: { name: 'Harbor Goods' }, answer: async () => 'ok' }
+  await assert.rejects(() => createCapServer({ ...options, log: { secret: 'short' } }), /at least 16/)
+  await assert.rejects(() => createCapServer({ ...options, log: { secret: LOG_SECRET, path: '/cap/v1/log' } }), /cannot share/)
+  await assert.rejects(() => createCapServer({ ...options, log: { secret: LOG_SECRET, path: '/oauth' } }), /cannot share/)
+  await assert.rejects(() => createCapServer({ ...options, log: { secret: LOG_SECRET, path: 'log' } }), /must be a path/)
+})
+
+test('the fetch handler serves the log at a custom path', async () => {
+  const door = await createCapHandler({
+    ...memoryStore(),
+    agent: { name: 'Harbor Goods' },
+    log: { secret: LOG_SECRET, path: '/owner/messages' },
+    answer: async ({ message }) => `Echo ${message} ${'and more '.repeat(40)}`,
+  })
+  try {
+    await door.handle(new Request('https://harborgoods.example/cap/v1/messages', {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ message: 'Hours?' }),
+    }))
+    const res = await door.handle(new Request('https://harborgoods.example/owner/messages?format=json', { headers: basic(LOG_SECRET) }))
+    const body = await res.json()
+    assert.equal(res.status, 200)
+    assert.equal(body.messages[0].reply.slice(0, 11), 'Echo Hours?')
+    const page = await door.handle(new Request('https://harborgoods.example/owner/messages', { headers: basic(LOG_SECRET) }))
+    assert.match(await page.text(), /Show full reply/)
+  } finally {
+    await door.close()
+  }
+})
+
 test('agent.name and answer are required', async () => {
   await assert.rejects(() => createCapServer({ answer: async () => 'x' }), /agent\.name/)
   await assert.rejects(() => createCapServer({ agent: { name: 'Harbor' } }), /answer function/)
